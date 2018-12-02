@@ -7,7 +7,7 @@
 // Description :
 //==============================================================================
 
-#include "webproxy.h"
+#include "dfs.h"
 
 #include <iostream>
 
@@ -47,6 +47,7 @@ void * AcceptConnection(void * shared_resources) {
 
 bool ProcessDFSRequest(char * buf, struct RequestMessage * req) {
 	std::cmatch cmatch1, cmatch2; // first match with a line, then with what you're looking for
+	/*
 
 	std::regex_search (buf, cmatch1, std::regex("Host: .+"));
 	std::regex_search (cmatch1.str().c_str(), cmatch2, std::regex("(?![Host: ])[^:]*"));
@@ -63,6 +64,7 @@ bool ProcessDFSRequest(char * buf, struct RequestMessage * req) {
 	if (req->method.compare("GET") != 0) {
 		return false;
 	}
+	*/
 	return true;
 }
 
@@ -94,7 +96,7 @@ ssize_t SendWholeMessage(int sock, char * buf, int buf_size) {
 }
 
 RequestMessage::RequestMessage() {
-	bzero(&this->host_addrinfo, sizeof this->host_addrinfo);
+	bzero((char *) &client_addr, sizeof(client_addr));
 }
 RequestMessage::~RequestMessage() {}
 
@@ -125,7 +127,7 @@ SharedResources::~SharedResources() {
 	std::cout << "~ SharedResources destructor ~" << std::endl;
 }
 //
-DistributedFileServer::DistributedFileServer(char * port_num, std::string folder_dir, int timeout = 60) {
+DistributedFileServer::DistributedFileServer(char * port_num, std::string folder_dir, int timeout) {
   //  Define the server's Internet address
 	bzero((char *) &server_addr_, sizeof(server_addr_));
 	server_addr_.sin_family = AF_INET;
@@ -157,7 +159,7 @@ bool DistributedFileServer::CreateBindSocket() {
 	}
 	//  Allows bind to reuse socket address (if supported)
 	if (setsockopt(this->listen_sd_, SOL_SOCKET, SO_REUSEADDR,
-	    (const void *)&on, sizeof(int)) < 0) {
+	    (const void *)&kOn, sizeof(int)) < 0) {
 		perror("setsockopt() failed");
 		close(listen_sd_);
 		return false;
@@ -185,12 +187,12 @@ bool DistributedFileServer::CreateBindSocket() {
 	// initialize master file-descriptor set
 	FD_ZERO(&master_set_);
 	FD_SET(listen_sd_, &master_set_);
-  max_sd_ = listen_sd_;
 	return true;
 }
 
-void WebProxy::StartDFSService() {
+void DistributedFileServer::StartDFSService() {
   int max_sd_ = listen_sd_; // listen socket has highest descriptor
+	int new_sd_; // socket descriptor for new client
 	bool continue_servicing = true; // if set to false, exits while loop below
 	struct RequestMessage request; // request from client
 	int i; // iterator for loop in StartHTTPServices()
@@ -198,7 +200,7 @@ void WebProxy::StartDFSService() {
 	ssize_t bytes_received;
 	struct sockaddr_in client_address; // client addr
 	socklen_t addr_length;
-	char * buffer = (char*) malloc (WEBPROXY_BUFFER_SIZE);
+	char * buffer = (char*) malloc (kBufferSize);
 	char * error_message = "ERROR 403 Forbidden\r\n\r\n\r\n";
 
 	while (continue_servicing) {
@@ -227,7 +229,7 @@ void WebProxy::StartDFSService() {
 						}
 					}
 					else { // socket other than listening socket wants to send data
-						if ((bytes_received = recv(i, buffer, WEBPROXY_BUFFER_SIZE, 0)) < 0) {
+						if ((bytes_received = recv(i, buffer, kBufferSize, 0)) < 0) {
 							if ((errno != EWOULDBLOCK) && (errno != EAGAIN)) { // ERROR
 								perror("recv() failed");
 								continue_servicing = false;
@@ -247,7 +249,7 @@ void WebProxy::StartDFSService() {
               request.clients_sd = i; // client socket descriptor
               request.client_addr = client_address; // sockaddr_in
               request.addr_len = addr_length; // socklen_t
-							if (ProcessHTTPRequest(&request) != true) {
+							if (ProcessDFSRequest(&request) != true) {
 								SendBadRequest(i);
 								std::cout << "! client " << i << ": bad request: \"" <<
 										request.request_line << "\"" << std::endl;

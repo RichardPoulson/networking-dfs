@@ -1,5 +1,5 @@
 NAME=dfs
-DEPENDENCIES=
+DEPENDENCIES=dfs.cpp driver.cpp
 #  Compiler to use (gcc / g++)
 COMPILER=g++
 LIBS=-pthread

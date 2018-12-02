@@ -37,8 +37,9 @@
 
 namespace networking_dfs {
 static const int kBufferSize = 10485760; // 10 MB
-static const int on = 1; // used for setsockopt
-static const int off = 0; // ""
+static const int kMaxNumDFSThreads = 8;
+static const int kOn = 1; // used for setsockopt
+static const int kOff = 0; // ""
 
 // PThread function
 void * AcceptConnection(void * shared_resources);
@@ -80,8 +81,8 @@ protected:
   int listen_sd_; // listen/max/new socket descriptors
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
-	//pthread_t proxy_connections[WEBPROXY_NUM_PTHREADS];
-	//pthread_attr_t pthread_attr; // attributes for the pthreads
+	pthread_t proxy_connections[kMaxNumDFSThreads];
+	pthread_attr_t pthread_attr; // attributes for the pthreads
 	struct SharedResources * shared_;
 	bool CreateBindSocket();
 	void StartDFSService();
