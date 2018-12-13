@@ -6,28 +6,17 @@ LIBS=-pthread
 CFLG=-O3 -Wall
 #  MinGW
 ifeq "$(OS)" "Windows_NT"
-CLEAN=del $(NAME).exe *.o *.a
+CLEAN=del dfs.exe dfc.exe *.o *.a
 else
 #  OSX/Linux/Unix/Solaris
-CLEAN=rm -f $(NAME) *.o *.a
+CLEAN=rm -f dfs dfc *.o *.a
 endif
 
-all : $(NAME)
-
-#== Compile and link (customize name at top of makefile)
-$(NAME) : $(NAME).cpp $(DEPENDENCIES)
-	$(COMPILER) $(CFLG) -o $(NAME) $^ $(LIBS)
+all :
+	cd src/dfs && $(MAKE)
+	cd src/dfc && $(MAKE)
 
 #== Clean current source dirictory and source directory for CSCIx229 library
 clean:
-	$(CLEAN)
-
-#== Execute the compiled binary file
-test:
-	./$(NAME) 10001 20 # port 10001, 20 second timeout
-
-#== Recycle: remove made files, compile, then run test recipe
-recycle : $(NAME).cpp $(DEPENDENCIES)
-	$(MAKE) clean
-	$(MAKE)
-	$(MAKE) test # Run the compiled binary file
+	cd src/dfs && $(CLEAN)
+	cd src/dfc && $(CLEAN)

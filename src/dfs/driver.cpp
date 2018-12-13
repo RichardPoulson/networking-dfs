@@ -10,18 +10,17 @@
 #include <csignal>
 
 #include "dfs.h"
-#include "dfc.h"
 
 int main(int argc, char **argv) {
-	if (argc != 3) {
+	if (argc != 4) {
 	    std::cout << argc << std::endl;
 	    std::cout <<
-	      "Invalid number of additional arguments, please enter two integers" <<
-	      " <port number> <timeout> as arguments." << std::endl;
+	      "Invalid number of additional arguments, please enter a port number," <<
+	      " a folder directory, and a socket timeout value." << std::endl;
 	      exit(EXIT_FAILURE);
 	  }
-	std::cout << "Starting WebProxy on port \"" << atoi(argv[1]) << "\" with a timeout of \"" << atoi(argv[2]) <<
+	std::cout << "Starting Distributed File Server\"" << atoi(argv[1]) << "\" with a timeout of \"" << atoi(argv[2]) <<
 			"\" seconds." << std::endl;
-	DistributedFileServer my_dfs(argv[1], atoi(argv[2]));
+	networking_dfs::DistributedFileServer my_dfs(argv[1], argv[2]);
 	return 0;
 }

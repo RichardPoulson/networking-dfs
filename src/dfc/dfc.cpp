@@ -1,5 +1,5 @@
 //==============================================================================
-// Name        : dfs.cpp
+// Name        : dfc.cpp
 // Author      : Richard Poulson
 // Version     : 1.0
 // Last edit   : 12/2/2018
@@ -7,127 +7,11 @@
 // Description :
 //==============================================================================
 
-#include "dfs.h"
-
-#include <iostream>
+#include "dfc.h"
 
 namespace networking_dfs {
-// PThread function
-void * AcceptConnection(void * shared_resources) {
-	/*
-	// cast shared resources so we can use
-	struct SharedResources * shared = (struct SharedResources*)shared_resources;
-	char * buffer = (char*) malloc (WEBPROXY_BUFFER_SIZE);
-	int bytes_received, bytes_sent;
-	bool page_cached, cached_page_old; // Is the requested page cached?  Is the cached page old?
-	std::map<std::string, struct CachedPage *>::iterator cached_iter;
-	std::map<std::string, struct addrinfo *>::iterator addrinfo_iter;
-	struct CachedPage * cached_point;
-	struct addrinfo hints, *results, *rp; // used with getaddrinfo()
-	int i; // iterator for loop in StartHTTPServices()
-	int http_serv_sd;
 
-	RequestMessage request = shared->request_queue.front();
-	shared->request_queue.pop();
-
-	std::cout << "(" << request.clients_sd << ") [" << request.host_name << ":" <<
-			request.host_port << "]  " << request.request_line << std::endl;
-	cached_iter = shared->cached_page_map.find(request.request_line);
-	// PAGE NOT CACHED page_cached, cached_page_old
-	if (cached_iter == shared->cached_page_map.end()) {
-		page_cached = false;
-	}
-
-	close(request.clients_sd);
-	delete [] buffer;
-	std::cout << "Exiting pthread\n";
-  pthread_exit(NULL);
-  */
-}
-
-bool ProcessDFSRequest(char * buf, struct RequestMessage * req) {
-	std::cmatch cmatch1, cmatch2; // first match with a line, then with what you're looking for
-	/*
-
-	std::regex_search (buf, cmatch1, std::regex("Host: .+"));
-	std::regex_search (cmatch1.str().c_str(), cmatch2, std::regex("(?![Host: ])[^:]*"));
-	req->host_name = cmatch2.str();
-	// Had to make custom regex to separate port number from address
-	std::regex_search (cmatch1.str().c_str(), cmatch2, std::regex("(?![Host: " + req->host_name + ":])[^:]*"));
-	req->host_port = cmatch2.str();
-	if (req->host_port == "") { req->host_port = "80"; } // if not defined, assume port 80
-	std::regex_search (buf, cmatch1, std::regex("^(GET|HEAD|POST|CONNECT).*"));
-	req->request_line = cmatch1.str().c_str();
-	req->request = buf; // copy entire request
-	std::regex_search (cmatch1.str().c_str(), cmatch2, std::regex("(GET|HEAD|POST|CONNECT)"));
-	req->method = cmatch2.str();
-	if (req->method.compare("GET") != 0) {
-		return false;
-	}
-	*/
-	return true;
-}
-
-void SendBadRequest(int sock) {
-	char bad_request[] = "HTTP/1.1 400 Bad Request\r\n";
-	strcat(bad_request, "Connection: close\r\n\r\n\r\n");
-	if (SendWholeMessage(sock, bad_request, sizeof bad_request) < 0) {
-		perror("send() failed");
-	}
-}
-//*/
-
-ssize_t SendWholeMessage(int sock, char * buf, int buf_size) {
-	// http://beej.us/guide/bgnet/html/single/bgnet.html#sendall
-	ssize_t total_sent = 0;        // how many bytes we've sent
-  ssize_t bytes_left = buf_size; // how many we have left to send
-  ssize_t bytes_sent;
-
-  while(total_sent < buf_size) {
-		bytes_sent = send(sock, buf + total_sent, bytes_left, 0);
-    if (bytes_sent == -1) {
-			perror("send() failed");
-			break;
-		}
-    total_sent += bytes_sent;
-    bytes_left -= bytes_sent;
-  }
-	return total_sent;
-}
-
-RequestMessage::RequestMessage() {
-	bzero((char *) &client_addr, sizeof(client_addr));
-}
-RequestMessage::~RequestMessage() {}
-
-SharedResources::SharedResources() {
-	pthread_mutex_init(&this->file_mx, NULL);
-	pthread_mutex_init(&this->map_mx, NULL);
-	pthread_mutex_init(&this->queue_mx, NULL);
-	pthread_mutex_init(&this->cout_mx, NULL);
-	pthread_mutex_init(&this->continue_mx, NULL);
-	this->regex_map["request line"] = std::regex(
-			"^(GET|HEAD|POST|CONNECT).*");
-	this->regex_map["method"] = std::regex("(GET|HEAD|POST|CONNECT)"); // Method
-	this->regex_map["http"] = std::regex("HTTP\\/\\d\\.\\d"); // HTTP Version
-	this->regex_map["connection line"] = std::regex("Connection: (keep-alive|close)\r\n"); // Connection: keep-alive
-	this->regex_map["connection"] = std::regex("(keep-alive|close)"); // Connection: keep-alive
-	this->regex_map["headers"] = std::regex("HTTP.+\r\n(.+\r\n)+\r\n"); // Connection: keep-alive
-	this->regex_map["host line"] = std::regex("Host: .+"); // Connection: keep-alive
-	this->regex_map["host name"] = std::regex("(?![Host: ])[^:]*"); // Connection: keep-alive
-	this->regex_map["host port"] = std::regex("(?![:]).*"); // Connection: keep-alive
-}
-
-SharedResources::~SharedResources() {
-	pthread_mutex_destroy(&this->file_mx);
-	pthread_mutex_destroy(&this->map_mx);
-	pthread_mutex_destroy(&this->queue_mx);
-	pthread_mutex_destroy(&this->cout_mx);
-	pthread_mutex_destroy(&this->continue_mx);
-	std::cout << "~ SharedResources destructor ~" << std::endl;
-}
-//
-DistributedFileServer::DistributedFileServer(char * port_num, std::string folder_dir, int timeout) {
+DFSClient::DFSClient(char * port_num, std::string folder_dir, int timeout) {
   //  Define the server's Internet address
 	bzero((char *) &server_addr_, sizeof(server_addr_));
 	server_addr_.sin_family = AF_INET;
@@ -145,13 +29,13 @@ DistributedFileServer::DistributedFileServer(char * port_num, std::string folder
 	StartDFSService();
 }
 
-DistributedFileServer::~DistributedFileServer() {
+DFSClient::~DFSClient() {
 	pthread_attr_destroy(&pthread_attr);
 	delete(this->shared_);
 	std::cout << "~ DistributedFileServer destructor ~" << std::endl;
 }
 
-bool DistributedFileServer::CreateBindSocket() {
+bool DFSClient::CreateBindSocket() {
 	//  0= pick any protocol that socket type supports, can also use IPPROTO_TCP
 	if ((this->listen_sd_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("ERROR opening socket");
@@ -190,7 +74,7 @@ bool DistributedFileServer::CreateBindSocket() {
 	return true;
 }
 
-void DistributedFileServer::StartDFSService() {
+void DFSClient::StartDFSService() {
   int max_sd_ = listen_sd_; // listen socket has highest descriptor
 	int new_sd_; // socket descriptor for new client
 	bool continue_servicing = true; // if set to false, exits while loop below

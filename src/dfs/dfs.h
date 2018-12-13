@@ -43,8 +43,6 @@ static const int kOff = 0; // ""
 
 // PThread function
 void * AcceptConnection(void * shared_resources);
-// Process HTTP request message, assigning values to struct RequestMessage
-bool ProcessDFSRequest(struct RequestMessage * req);
 // send HTTP/1.1 400 Bad Request\r\n\r\n\r\n
 void SendBadRequest(int sock);
 // keeps sending until all bytes sent
@@ -86,6 +84,7 @@ protected:
 	struct SharedResources * shared_;
 	bool CreateBindSocket();
 	void StartDFSService();
+	bool ProcessDFSRequest(struct RequestMessage *);
 };
 
 } // namespace networking_dfs

@@ -9,7 +9,6 @@
 
 #include <csignal>
 
-#include "dfs.h"
 #include "dfc.h"
 
 int main(int argc, char **argv) {
