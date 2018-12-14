@@ -7,10 +7,11 @@
 // Description :
 //==============================================================================
 
-#ifndef NETWORKING_DFC_H_
-#define NETWORKING_DFC_H_
+#ifndef NETWORKING_DFS_DFC_H_
+#define NETWORKING_DFS_DFC_H_
 
-#include "dfs.h"
+// crypto++
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 
 #include <stddef.h> // NULL, nullptr_t
 #include <stdio.h> // FILE, size_t, fopen, fclose, fread, fwrite,
@@ -35,25 +36,46 @@
 #include <sys/ioctl.h> // set socket to be nonbinding
 #include <queue>
 #include <map> // map of string to regex
-#include <unordered_set> // unordered set of blacklisted sites
+//#include <cryptopp/md5.h> // crypto++
+#include <openssl/md5.h> // MD5 hash
 
-namespace networking_dfs {
+namespace networking_dfs_dfc {
+static const int kBufferSize = 10485760; // 10 MB
+static const int kNumDFSServers = 4; // there are 4 DFS
+static const int kOn = 1; // used for setsockopt
+static const int kOff = 0; // ""
 
-class DFSClient {
+ssize_t SendWholeMessage(int sock, char * buf, int buf_size);
+// data structure dealing with HTTP request messages
+
+// data structure dealing with HTTP request messages
+struct HashStruct
+{
+	std::string str; // string representation of value in hex form
+  unsigned long long int ull; // value of the hash
+  HashStruct();
+  virtual ~HashStruct();
+};
+
+// WebProxy constructor takes two arguments (see below for default values).
+class DFC {
 public:
-	DFSClient(char * port_num, std::string folder_dir, int timeout = 60);
-	virtual ~DFSClient();
-private:
-  struct sockaddr_in client_addr_; // address for listening socket
-  int client_sd_; // listen/max/new socket descriptors
+	DFC();
+	virtual ~DFC();
+protected:
+	std::map<std::string, std::string> server_map_;
+	std::string user_;
+	std::string password_;
+	std::map<std::string, std::regex> regex_map_;
+  struct sockaddr_in server_addr_; // address for listening socket
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
 	bool CreateBindSocket();
-	void StartDFSService();
-	void UploadFile();
-	void DownloadFile();
+	//void HashMessage(std::string * message, std::string);
+	bool LoadConfigFile();
+	void StartDFCService();
 };
 
-} // namespace networking_dfs
+} // namespace networking_dfs_dfc
 
-#endif // NETWORKING_DFC_H_
+#endif // NETWORKING_DFS_DFC_H_

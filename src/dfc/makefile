@@ -1,7 +1,7 @@
-NAME=dfs
-DEPENDENCIES=dfs.cpp driver.cpp
+NAME=dfc
+DEPENDENCIES=dfc.cpp driver.cpp
 #  Compiler to use (gcc / g++)
-COMPILER=g++
+COMPILER=g++ -std=c++11
 LIBS=-pthread -lssl -lcrypto
 CFLG=-O3 -Wall
 #  MinGW
@@ -23,11 +23,11 @@ clean:
 	$(CLEAN)
 
 #== Execute the compiled binary file
-test:
-	./$(NAME) 10001 20 # port 10001, 20 second timeout
+exec:
+	./$(NAME)
 
 #== Recycle: remove made files, compile, then run test recipe
 recycle : $(NAME).cpp $(DEPENDENCIES)
 	$(MAKE) clean
 	$(MAKE)
-	$(MAKE) test # Run the compiled binary file
+	$(MAKE) exec # Run the compiled binary file

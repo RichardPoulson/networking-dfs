@@ -4,7 +4,7 @@
 // Version     : 1.0
 // Last edit   : 12/2/2018
 //
-// Description :
+// Description : driver program that creates a DistributedFileServer
 //============================================================================
 
 #include <csignal>
@@ -12,15 +12,8 @@
 #include "dfc.h"
 
 int main(int argc, char **argv) {
-	if (argc != 3) {
-	    std::cout << argc << std::endl;
-	    std::cout <<
-	      "Invalid number of additional arguments, please enter two integers" <<
-	      " <port number> <timeout> as arguments." << std::endl;
-	      exit(EXIT_FAILURE);
-	  }
-	std::cout << "Starting WebProxy on port \"" << atoi(argv[1]) << "\" with a timeout of \"" << atoi(argv[2]) <<
-			"\" seconds." << std::endl;
-	DistributedFileServer my_dfs(argv[1], atoi(argv[2]));
+	std::cout << std::endl << "Starting Distributed File Client" << std::endl;
+	networking_dfs_dfc::DFC * my_dfc = new networking_dfs_dfc::DFC();
+	delete(my_dfc);
 	return 0;
 }

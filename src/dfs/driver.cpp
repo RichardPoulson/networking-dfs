@@ -4,7 +4,7 @@
 // Version     : 1.0
 // Last edit   : 12/2/2018
 //
-// Description :
+// Description : driver program that creates a DistributedFileServer
 //============================================================================
 
 #include <csignal>
@@ -12,15 +12,17 @@
 #include "dfs.h"
 
 int main(int argc, char **argv) {
-	if (argc != 4) {
+	if (argc != 3) {
 	    std::cout << argc << std::endl;
 	    std::cout <<
-	      "Invalid number of additional arguments, please enter a port number," <<
-	      " a folder directory, and a socket timeout value." << std::endl;
-	      exit(EXIT_FAILURE);
+	    "Invalid number of additional arguments, please enter a port number," <<
+	    " a folder directory, and a socket timeout value." << std::endl;
+	    exit(EXIT_FAILURE);
 	  }
-	std::cout << "Starting Distributed File Server\"" << atoi(argv[1]) << "\" with a timeout of \"" << atoi(argv[2]) <<
-			"\" seconds." << std::endl;
-	networking_dfs::DistributedFileServer my_dfs(argv[1], argv[2]);
+	std::cout << std::endl << "Starting Distributed File Server \"" << atoi(argv[1]) <<
+	    "\", will exit if idle for " << atoi(argv[2]) <<
+			" seconds." << std::endl;
+	networking_dfs::DFS * my_dfs = new networking_dfs::DFS(argv[1], argv[2]);
+	delete(my_dfs);
 	return 0;
 }

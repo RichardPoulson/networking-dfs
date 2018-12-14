@@ -10,6 +10,8 @@
 #ifndef NETWORKING_DFS_H_
 #define NETWORKING_DFS_H_
 
+#include <string>
+
 #include <stddef.h> // NULL, nullptr_t
 #include <stdio.h> // FILE, size_t, fopen, fclose, fread, fwrite,
 #include <iostream> // cout
@@ -55,7 +57,9 @@ struct RequestMessage
 	socklen_t addr_len;
 	std::string request_line; // entire request from message
   std::string method; // GET,HEAD,POST
-  std::string filename; // e.g. test.txt
+  std::string parameter; // e.g. test.txt
+	std::string user;
+	std::string pass;
   RequestMessage();
   virtual ~RequestMessage();
 };
@@ -63,28 +67,30 @@ struct RequestMessage
 struct SharedResources {
   struct timeval socket_timeout; // timeout value for socket
   pthread_mutex_t file_mx, map_mx, queue_mx, cout_mx, continue_mx;
-  std::map<std::string, std::regex> regex_map; // map from string to regex
   std::queue<struct RequestMessage> request_queue;//client_queue;
   SharedResources();
   virtual ~SharedResources();
 };
 
 // WebProxy constructor takes two arguments (see below for default values).
-class DistributedFileServer {
+class DFS {
 public:
-	DistributedFileServer(char * port_num, std::string folder_dir, int timeout = 60);
-	virtual ~DistributedFileServer();
+	DFS(char * port_num, std::string folder_dir, int timeout = 20);
+	virtual ~DFS();
 protected:
+	std::string folder_; // folder that DFS works from
   struct sockaddr_in server_addr_; // address for listening socket
   int listen_sd_; // listen/max/new socket descriptors
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
+	std::map<std::string, std::string> user_pass_map_;
 	pthread_t proxy_connections[kMaxNumDFSThreads];
 	pthread_attr_t pthread_attr; // attributes for the pthreads
 	struct SharedResources * shared_;
 	bool CreateBindSocket();
-	void StartDFSService();
+	bool LoadConfigFile();
 	bool ProcessDFSRequest(struct RequestMessage *);
+	void StartDFSService();
 };
 
 } // namespace networking_dfs

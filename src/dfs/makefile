@@ -1,8 +1,8 @@
 NAME=dfs
 DEPENDENCIES=dfs.cpp driver.cpp
 #  Compiler to use (gcc / g++)
-COMPILER=g++
-LIBS=-pthread
+COMPILER=g++ -std=c++11
+LIBS=-pthread -lssl -lcrypto
 CFLG=-O3 -Wall
 #  MinGW
 ifeq "$(OS)" "Windows_NT"

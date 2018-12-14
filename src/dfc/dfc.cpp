@@ -1,41 +1,67 @@
-//==============================================================================
-// Name        : dfc.cpp
-// Author      : Richard Poulson
-// Version     : 1.0
-// Last edit   : 12/2/2018
-//
-// Description :
-//==============================================================================
+/*==============================================================================
+Name        : dfc.cpp
+Author      : Richard Poulson
+Version     : 1.0
+Last edit   : 12/2/2018
+
+Description :
+
+https://stackoverflow.com/questions/8257432/how-to-return-the-md5-hash-in-a-string-in-this-code-c
+https://stackoverflow.com/questions/1070497/c-convert-hex-string-to-signed-integer
+http://www.cplusplus.com/reference/string/stoul/
+https://en.wikipedia.org/wiki/MD5
+http://www.cplusplus.com/reference/string/string/
+==============================================================================*/
 
 #include "dfc.h"
 
-namespace networking_dfs {
+#include <iostream>
 
-DFSClient::DFSClient(char * port_num, std::string folder_dir, int timeout) {
-  //  Define the server's Internet address
-	bzero((char *) &server_addr_, sizeof(server_addr_));
-	server_addr_.sin_family = AF_INET;
+namespace networking_dfs_dfc {
+
+ssize_t SendWholeMessage(int sock, char * buf, int buf_size)
+{
+	// http://beej.us/guide/bgnet/html/single/bgnet.html#sendall
+	ssize_t total_sent = 0;        // how many bytes we've sent
+  ssize_t bytes_left = buf_size; // how many we have left to send
+  ssize_t bytes_sent;
+
+  while(total_sent < buf_size) {
+		bytes_sent = send(sock, buf + total_sent, bytes_left, 0);
+    if (bytes_sent == -1) {
+			perror("send() failed");
+			break;
+		}
+    total_sent += bytes_sent;
+    bytes_left -= bytes_sent;
+  }
+	return total_sent;
+}
+
+HashStruct::HashStruct() {
+	str = "";
+	ull = 0;
+}
+HashStruct::~HashStruct() {}
+
+DFC::DFC()
+{
+	std::cout << "~ DFC Constructor ~" << std::endl;
+  bzero((char *) &server_addr_, sizeof(server_addr_));
+	server_addr_.sin_family = AF_INET; // Address Family
+	// socket bound to all local interfaces
 	server_addr_.sin_addr.s_addr = htonl(INADDR_ANY);
-	server_addr_.sin_port = htons(atoi(port_num));
-	timeout_.tv_sec = timeout; // for listening socket (in seconds)
-	timeout_.tv_usec = 0;
-	shared_ = new struct SharedResources();
-  /*
-	// Initialize and set thread joinable
-  pthread_attr_init(&pthread_attr);
-  pthread_attr_setdetachstate(&pthread_attr, PTHREAD_CREATE_JOINABLE);
-  */
-	CreateBindSocket();
-	StartDFSService();
+	LoadConfigFile(); // server names + addresses, and username + password
+	StartDFCService();
 }
 
-DFSClient::~DFSClient() {
-	pthread_attr_destroy(&pthread_attr);
-	delete(this->shared_);
-	std::cout << "~ DistributedFileServer destructor ~" << std::endl;
+DFC::~DFC() {
+	std::cout << "~ DFC Destructor ~" << std::endl;
 }
 
-bool DFSClient::CreateBindSocket() {
+bool DFC::CreateBindSocket() {
+	std::cout << "Entered Createbindsocket()" << std::endl;
+	/*
 	//  0= pick any protocol that socket type supports, can also use IPPROTO_TCP
 	if ((this->listen_sd_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("ERROR opening socket");
@@ -48,14 +74,13 @@ bool DFSClient::CreateBindSocket() {
 		close(listen_sd_);
 		return false;
 	}
-  /*
+  //==  set port to be non-blocking
 	// set listen socket to be non-binding
 	if (ioctl(listen_sd_, FIONBIO, (char *)&on_) < 0) {
 		perror("ioctl() failed");
 		close(listen_sd_);
 		return false;
 	}
-  */
 	//  Define the server's Internet address
 	if (bind(listen_sd_, (struct sockaddr *)&server_addr_, sizeof(server_addr_)) < 0) {
 	    perror("ERROR on binding");
@@ -71,94 +96,100 @@ bool DFSClient::CreateBindSocket() {
 	// initialize master file-descriptor set
 	FD_ZERO(&master_set_);
 	FD_SET(listen_sd_, &master_set_);
+	  */
 	return true;
 }
 
-void DFSClient::StartDFSService() {
-  int max_sd_ = listen_sd_; // listen socket has highest descriptor
-	int new_sd_; // socket descriptor for new client
-	bool continue_servicing = true; // if set to false, exits while loop below
-	struct RequestMessage request; // request from client
-	int i; // iterator for loop in StartHTTPServices()
-	int num_sockets_ready; // keeps track of how many socket descriptors are readable
-	ssize_t bytes_received;
-	struct sockaddr_in client_address; // client addr
-	socklen_t addr_length;
-	char * buffer = (char*) malloc (kBufferSize);
-	char * error_message = "ERROR 403 Forbidden\r\n\r\n\r\n";
+bool DFC::LoadConfigFile() {
+	std::string line;
+	std::string name;
+	std::string address;
+	char cstring[256];
+	char * pch;
+  std::ifstream config_file("dfc.conf");
+  if(config_file.is_open()) {
+		// map 4 server names/folders to network addresses
+		for (int i=0; i<4; i++) {
+			getline(config_file, line);
+			bzero(cstring, sizeof cstring);
+			strcpy(cstring,line.c_str()); // copy string to cstring
+			pch = strtok(cstring, " "); // space is delimiter
+      while (pch != NULL) // go through the line
+      {
+				pch = strtok(NULL, " ");  // ignore "Server"
+				name.assign(pch);
+	      pch = strtok(NULL, " ");  // get folder for server
+				address.assign(pch);
+				pch = strtok(NULL, " ");  // get address for server
+				server_map_[name] = address; // map folder
+				std::cout << name << ": " << server_map_[name] << std::endl;
+      }
+		}
+		getline(config_file, line);
+		bzero(cstring, sizeof cstring);
+		strcpy(cstring,line.c_str()); // copy string to cstring
+		pch = strtok(cstring, " "); // get "Username:" and discard
+    pch = strtok(NULL, " ");  // get username
+		user_.assign(pch); // assign username
+		getline(config_file, line);
+		bzero(cstring, sizeof cstring);
+		strcpy(cstring,line.c_str()); // copy string to cstring
+		pch = strtok(cstring, " "); // get "Password:" and discard
+    pch = strtok(NULL, " ");  // get password
+		password_.assign(pch);
+		std::cout << "User: " << user_ << " , Pass: " << password_ << std::endl;
+    config_file.close();
+		return true;
+  }
+  else std::cout << "Unable to open file";
+	return false;
+}
 
-	while (continue_servicing) {
-		// copy master set to working set
-		memcpy(&working_set_, &master_set_, sizeof(master_set_));
-		// how many socket descriptors are readable?
-		num_sockets_ready = select(max_sd_+1, &working_set_, NULL, NULL, &timeout_);
-		if (num_sockets_ready < 0) { // ERROR
-			perror("select() failed");
-			continue_servicing = false;
+void DFC::StartDFCService() {
+	MD5_CTX md5;
+	int i;
+	std::string result;
+	result.reserve(32);  // C++11 only, otherwise ignore
+	unsigned char buffer_md5[16];
+	unsigned long long int ull = 0;
+	std::string input = "";
+	const char* test;
+	bool continue_prompting = true;
+	std::cout << std::endl << "Welcome to the distributed file system!" << std::endl;
+	while (continue_prompting) {
+		MD5_Init(&md5);
+		input.clear();
+		result.clear();
+		std::cout << "Please enter a command:  ";
+		std::cin >> input;
+		test = input.c_str();
+		MD5_Update(&md5, (const unsigned char *) test, input.length());
+
+		bzero(buffer_md5, sizeof buffer_md5);
+		MD5_Final(buffer_md5, &md5);
+		for (std::size_t i = 0; i != 16; ++i)
+		{
+			result += "0123456789ABCDEF"[buffer_md5[i] / 16];
+			result += "0123456789ABCDEF"[buffer_md5[i] % 16];
 		}
-		else if (num_sockets_ready == 0) { // TIMEOUT
-			continue_servicing = false;
+		std::cout << result << std::endl;
+		ull = std::strtoull(result.c_str(),NULL,0);
+		std::cout << "You entered: " << ull << '\n';
+		//long unsigned int x = std::stoul(&result, nullptr, 16);
+
+		/*
+		result.reserve(32);  // C++11 only, otherwise ignore
+		for (std::size_t i = 0; i != 16; ++i)
+		{
+			result += "0123456789ABCDEF"[buffer_md5[i] / 16];
+			result += "0123456789ABCDEF"[buffer_md5[i] % 16];
 		}
-		else { // 1 or more socket descriptors are readable
-			for (i=0; i <= max_sd_; ++i) {
-				if (FD_ISSET(i, &working_set_)) { // read data from them
-					if (i == listen_sd_) { // SERVER SOCKET
-						if ((new_sd_ = accept(listen_sd_,
-									(struct sockaddr *)&client_address, &addr_length)) < 0) {
-							perror("accept() failed.");
-						}
-						FD_SET(new_sd_, &master_set_);
-						if (new_sd_ > max_sd_) {
-							max_sd_ = new_sd_;
-						}
-					}
-					else { // socket other than listening socket wants to send data
-						if ((bytes_received = recv(i, buffer, kBufferSize, 0)) < 0) {
-							if ((errno != EWOULDBLOCK) && (errno != EAGAIN)) { // ERROR
-								perror("recv() failed");
-								continue_servicing = false;
-							}
-						}
-						else if (bytes_received == 0) { // Client closed connection
-							close(i);
-							FD_CLR(i, &master_set_);
-							if (i == max_sd_) {
-								if (FD_ISSET(max_sd_, &master_set_) == 0) {
-									max_sd_ = max_sd_ - 1;
-								}
-							}
-						}
-						else { // bytes_received  > 0
-              request.request_line.copy(buffer, bytes_received); // request
-              request.clients_sd = i; // client socket descriptor
-              request.client_addr = client_address; // sockaddr_in
-              request.addr_len = addr_length; // socklen_t
-							if (ProcessDFSRequest(&request) != true) {
-								SendBadRequest(i);
-								std::cout << "! client " << i << ": bad request: \"" <<
-										request.request_line << "\"" << std::endl;
-								continue;
-							}
-              std::cout << request.request_line << std::endl;
-							//*/
-						}
-					} // Enf of if i != listen_sd_
-				} // End of if (FD_ISSET(i, &read_fds_))
-			} // End of loop through selectable descriptors
-		} // End of Else (socket is not listen_sd
-	} // End while(continue_servicing)
-	// clean up open sockets
-	for (i=0; i <= max_sd_; ++i) {
-		if (FD_ISSET(i, &master_set_)) {
-			close(i);
-			if (i == listen_sd_) {
-				std::cout << "- closing LISTENING socket (" << i << ")" << std::endl;
-			}
-			else {
-				std::cout << "- closing client socket (" << i << ")" << std::endl;
-			}
+		std::cout << result << std::endl;
+		*/
+		if (input == "exit") {
+			continue_prompting = false;
 		}
 	}
-	free(buffer);
+
 }
-} // namespace networking_dfs
+} // namespace networking_dfs_dfc
