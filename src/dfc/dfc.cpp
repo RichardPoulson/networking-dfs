@@ -11,6 +11,7 @@ https://stackoverflow.com/questions/1070497/c-convert-hex-string-to-signed-integ
 http://www.cplusplus.com/reference/string/stoul/
 https://en.wikipedia.org/wiki/MD5
 http://www.cplusplus.com/reference/string/string/
+https://stackoverflow.com/questions/49764841/c-stdmap-get-the-key-at-a-specific-offset
 ==============================================================================*/
 
 #include "dfc.h"
@@ -18,6 +19,15 @@ http://www.cplusplus.com/reference/string/string/
 #include <iostream>
 
 namespace networking_dfs_dfc {
+
+// get sockaddr, IPv4 or IPv6:
+void *get_in_addr(struct sockaddr *sa)
+{
+  if (sa->sa_family == AF_INET) {
+    return &(((struct sockaddr_in*)sa)->sin_addr);
+  }
+  return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
 
 ssize_t SendWholeMessage(int sock, char * buf, int buf_size)
 {
@@ -47,57 +57,82 @@ HashStruct::~HashStruct() {}
 DFC::DFC()
 {
 	std::cout << "~ DFC Constructor ~" << std::endl;
-  bzero((char *) &server_addr_, sizeof(server_addr_));
-	server_addr_.sin_family = AF_INET; // Address Family
-	// socket bound to all local interfaces
-	server_addr_.sin_addr.s_addr = htonl(INADDR_ANY);
+  buffer_ = (char*) malloc (kBufferSize); // allocate memory for buffer
 	LoadConfigFile(); // server names + addresses, and username + password
+  CreateSocket(); // create socket used for communicating with DFS
 	StartDFCService();
 }
 
 DFC::~DFC() {
-	std::cout << "~ DFC Destructor ~" << std::endl;
+  std::cout << "~ DFC Destructor ~" << std::endl;
+  close(sockfd_);
+  delete [] buffer_;
 }
 
-bool DFC::CreateBindSocket() {
-	std::cout << "Entered Createbindsocket()" << std::endl;
-	/*
-	//  0= pick any protocol that socket type supports, can also use IPPROTO_TCP
-	if ((this->listen_sd_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		perror("ERROR opening socket");
-		return false;
+bool DFC::BindSocket(std::string address_string) {
+  char * pch; // pointer to character
+  char cstring[256] = {0};
+  strcpy(cstring,address_string.c_str()); // server name and port
+  pch = strtok(cstring, ":"); // space is delimiter
+  pch = strtok(NULL, " ");  // ignore "Server"
+  unsigned short int port = atoi(pch);
+  // set
+  memset(&serv_addr_, '0', sizeof(serv_addr_));
+  serv_addr_.sin_family = AF_INET; // IPv4
+  serv_addr_.sin_port = htons(port);
+  // Convert IPv4 and IPv6 addresses from text to binary form
+  if(inet_pton(AF_INET, "127.0.0.1", &serv_addr_.sin_addr)<=0) {
+    perror("inet_pton() failed");
+    close(sockfd_);
+    return false;
+  }
+  if (connect(sockfd_, (struct sockaddr *)&serv_addr_, sizeof(serv_addr_)) < 0) {
+    perror("connect() failed");
+    close(sockfd_);
+    return false;
+  }
+  std::cout << " ~ socket connected to port \"" << port << "\"." << std::endl;
+  return true;
+}
+
+bool DFC::CreateSocket() {
+  if ((sockfd_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("socket() failed");
+    return false;
+  }
+  std::cout << " ~ socket created ~" << std::endl;
+  return true;
+}
+
+void DFC::HandleInput(std::string input) {
+  struct HashStruct * hash = new struct HashStruct();
+  HashMessage(input, hash);
+  int remainder = hash->ull % kNumDFSServers;
+  BindSocket("127.0.0.1:10001");
+
+	//UploadFile(input);
+}
+
+void DFC::HashMessage(std::string message, struct HashStruct * hash_struct) {
+	MD5_CTX md5;
+	int i;
+	std::string result;
+	result.reserve(32);  // C++11 only, otherwise ignore
+	unsigned char buffer_md5[16];
+	unsigned long long int ull = 0;
+	const char* test;
+	MD5_Init(&md5);
+	test = message.c_str();
+	MD5_Update(&md5, (const unsigned char *)test, message.length());
+	bzero(buffer_md5, sizeof buffer_md5);
+	MD5_Final(buffer_md5, &md5);
+	for (std::size_t i = 0; i != 16; ++i)
+	{
+		result += "0123456789ABCDEF"[buffer_md5[i] / 16];
+		result += "0123456789ABCDEF"[buffer_md5[i] % 16];
 	}
-	//  Allows bind to reuse socket address (if supported)
-	if (setsockopt(this->listen_sd_, SOL_SOCKET, SO_REUSEADDR,
-	    (const void *)&kOn, sizeof(int)) < 0) {
-		perror("setsockopt() failed");
-		close(listen_sd_);
-		return false;
-	}
-  //==  set port to be non-blocking
-	// set listen socket to be non-binding
-	if (ioctl(listen_sd_, FIONBIO, (char *)&on_) < 0) {
-		perror("ioctl() failed");
-		close(listen_sd_);
-		return false;
-	}
-	//  Define the server's Internet address
-	if (bind(listen_sd_, (struct sockaddr *)&server_addr_, sizeof(server_addr_)) < 0) {
-	    perror("ERROR on binding");
-	    close(listen_sd_);
-	    return false;
-	}
-	// set the listen back log
-	if (listen(listen_sd_, 32) < 0) {
-		perror("listen() failed");
-		close(listen_sd_);
-		return false;
-	}
-	// initialize master file-descriptor set
-	FD_ZERO(&master_set_);
-	FD_SET(listen_sd_, &master_set_);
-	  */
-	return true;
+	hash_struct->str.assign(result);
+	hash_struct->ull = std::strtoull(result.substr(0,8).c_str(),NULL,16);
 }
 
 bool DFC::LoadConfigFile() {
@@ -145,51 +180,73 @@ bool DFC::LoadConfigFile() {
 	return false;
 }
 
+void DFC::SendCommand(std::string command_str) {
+	BindSocket("127.0.0.1:10001");
+  send(sockfd_, command_str.c_str(), command_str.size(), 0);
+}
+
 void DFC::StartDFCService() {
-	MD5_CTX md5;
-	int i;
-	std::string result;
-	result.reserve(32);  // C++11 only, otherwise ignore
-	unsigned char buffer_md5[16];
-	unsigned long long int ull = 0;
 	std::string input = "";
-	const char* test;
 	bool continue_prompting = true;
 	std::cout << std::endl << "Welcome to the distributed file system!" << std::endl;
 	while (continue_prompting) {
-		MD5_Init(&md5);
 		input.clear();
-		result.clear();
 		std::cout << "Please enter a command:  ";
 		std::cin >> input;
-		test = input.c_str();
-		MD5_Update(&md5, (const unsigned char *) test, input.length());
+		HandleInput(input);
 
-		bzero(buffer_md5, sizeof buffer_md5);
-		MD5_Final(buffer_md5, &md5);
-		for (std::size_t i = 0; i != 16; ++i)
-		{
-			result += "0123456789ABCDEF"[buffer_md5[i] / 16];
-			result += "0123456789ABCDEF"[buffer_md5[i] % 16];
-		}
-		std::cout << result << std::endl;
-		ull = std::strtoull(result.c_str(),NULL,0);
-		std::cout << "You entered: " << ull << '\n';
-		//long unsigned int x = std::stoul(&result, nullptr, 16);
-
-		/*
-		result.reserve(32);  // C++11 only, otherwise ignore
-		for (std::size_t i = 0; i != 16; ++i)
-		{
-			result += "0123456789ABCDEF"[buffer_md5[i] / 16];
-			result += "0123456789ABCDEF"[buffer_md5[i] % 16];
-		}
-		std::cout << result << std::endl;
-		*/
 		if (input == "exit") {
 			continue_prompting = false;
 		}
 	}
-
 }
+
+void DFC::UploadFile(std::string command_str) {
+  char msg[] = "list Alice SimplePassword";
+	struct HashStruct * hash = new struct HashStruct();
+	memset(hash, 0, sizeof(*hash));
+	HashMessage(command_str, hash);
+	std::cout << (hash->ull % 4) << std::endl;
+	size_t file_size = 0;
+	char part1[kBufferSize / 4] = "";
+	char part2[kBufferSize / 4] = "";
+	char part3[kBufferSize / 4] = "";
+	char part4[kBufferSize / 4] = "";
+  /*
+	FILE * fp = fopen(file.c_str(), "rb"); // open the file in read mode (binary)
+	if (fp != NULL) {
+		fseek(fp, 0L, SEEK_END); // seek to end in order to get size
+		file_size = ftell(fp); // get size of file in bytes
+		rewind(fp); // seek back to beginning of file
+		fclose(fp);
+	}
+	else {
+		perror("fopen() failed");
+		return;
+	}
+  */
+	std::cout << file_size << std::endl;
+	BindSocket("127.0.0.1:10001");
+  send(sockfd_, msg, sizeof msg, 0);
+
+  /*
+
+  memset(buffer_, '0', kBufferSize);
+  size_t received = recv(sockfd_, buffer_, kBufferSize, 0);
+  std::cout << buffer_ << std::endl;
+
+
+	DIR * directory; // used for "ls" command
+	struct dirent *dir; // used for "ls" command
+	directory = opendir(".");
+  if (directory) {
+    std::cout << "  Files in your LOCAL directory:" << std::endl;
+    while ((dir = readdir(directory)) != NULL) {
+      std::cout << "    " << dir->d_name << std::endl;
+    }
+    std::cout << std::endl;
+  }
+  */
+}
+
 } // namespace networking_dfs_dfc

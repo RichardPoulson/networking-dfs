@@ -25,6 +25,7 @@
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h> //  socklen_t,
+#include <sys/ioctl.h> // set socket to be nonbinding
 #include <netinet/in.h> //  sockaddr_in, INADDR_ANY,
 #include <arpa/inet.h> //  htonl, htons, inet_ntoa,
 #include <dirent.h> //  "Traverse directory", opendir, readdir,
@@ -33,10 +34,9 @@
 #include <pthread.h> // process threads,
 #include <ctime> //  time_t, tm,
 #include <stack> //  stack of process threads
-#include <sys/ioctl.h> // set socket to be nonbinding
+
 #include <queue>
 #include <map> // map of string to regex
-//#include <cryptopp/md5.h> // crypto++
 #include <openssl/md5.h> // MD5 hash
 
 namespace networking_dfs_dfc {
@@ -44,6 +44,9 @@ static const int kBufferSize = 10485760; // 10 MB
 static const int kNumDFSServers = 4; // there are 4 DFS
 static const int kOn = 1; // used for setsockopt
 static const int kOff = 0; // ""
+
+// get sockaddr, IPv4 or IPv6:
+void *get_in_addr(struct sockaddr *sa);
 
 ssize_t SendWholeMessage(int sock, char * buf, int buf_size);
 // data structure dealing with HTTP request messages
@@ -63,17 +66,23 @@ public:
 	DFC();
 	virtual ~DFC();
 protected:
+	char * buffer_;
+	int sockfd_; // file descriptor for socket connecting to DFS
 	std::map<std::string, std::string> server_map_;
 	std::string user_;
 	std::string password_;
-	std::map<std::string, std::regex> regex_map_;
-  struct sockaddr_in server_addr_; // address for listening socket
+	struct sockaddr_in serv_addr_;
+	struct addrinfo hints_, *servinfo_, *p_;
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
-	bool CreateBindSocket();
-	//void HashMessage(std::string * message, std::string);
+	bool BindSocket(std::string addr_str);
+	bool CreateSocket();
+	void HandleInput(std::string input);
+	void HashMessage(std::string message, struct HashStruct * hash_struct);
 	bool LoadConfigFile();
+	void SendCommand(std::string command_str);
 	void StartDFCService();
+	void UploadFile(std::string command_str);
 };
 
 } // namespace networking_dfs_dfc

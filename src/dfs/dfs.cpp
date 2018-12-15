@@ -13,36 +13,9 @@
 
 namespace networking_dfs {
 // PThread function
-void * AcceptConnection(void * shared_resources) {
-	/*
-	// cast shared resources so we can use
-	struct SharedResources * shared = (struct SharedResources*)shared_resources;
-	char * buffer = (char*) malloc (WEBPROXY_BUFFER_SIZE);
-	int bytes_received, bytes_sent;
-	bool page_cached, cached_page_old; // Is the requested page cached?  Is the cached page old?
-	std::map<std::string, struct CachedPage *>::iterator cached_iter;
-	std::map<std::string, struct addrinfo *>::iterator addrinfo_iter;
-	struct CachedPage * cached_point;
-	struct addrinfo hints, *results, *rp; // used with getaddrinfo()
-	int i; // iterator for loop in StartHTTPServices()
-	int http_serv_sd;
-
-	RequestMessage request = shared->request_queue.front();
-	shared->request_queue.pop();
-
-	std::cout << "(" << request.clients_sd << ") [" << request.host_name << ":" <<
-			request.host_port << "]  " << request.request_line << std::endl;
-	cached_iter = shared->cached_page_map.find(request.request_line);
-	// PAGE NOT CACHED page_cached, cached_page_old
-	if (cached_iter == shared->cached_page_map.end()) {
-		page_cached = false;
-	}
-
-	close(request.clients_sd);
-	delete [] buffer;
-	std::cout << "Exiting pthread\n";
-	*/
-  pthread_exit(NULL);
+void * PThread(void * arg) {
+  struct SharedResources * shared = (struct SharedResources *)arg;
+  pthread_exit(NULL); // exit, don't return anything
 }
 
 void SendBadRequest(int sock)
@@ -107,6 +80,7 @@ SharedResources::~SharedResources()
 DFS::DFS(char * port_num, std::string folder_dir, int timeout)
 {
 	std::cout << " ~ DFS Constructor ~" << std::endl;
+  buffer = (char*) malloc (kBufferSize);
 	bzero((char *) &server_addr_, sizeof(server_addr_));
 	server_addr_.sin_family = AF_INET;
 	server_addr_.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -120,10 +94,11 @@ DFS::DFS(char * port_num, std::string folder_dir, int timeout)
 
 DFS::~DFS() {
 	std::cout << " ~ DFS Destructor ~" << std::endl;
+  delete [] buffer;
 }
 
 bool DFS::CreateBindSocket() {
-	std::cout << " ~ Createbindsocket ~" << std::endl;
+	std::cout << " ~ CreateBindSocket ~" << std::endl;
 	//  0= pick any protocol that socket type supports, can also use IPPROTO_TCP
 	if ((this->listen_sd_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("ERROR opening socket");
@@ -206,7 +181,7 @@ bool DFS::ProcessDFSRequest(struct RequestMessage * request) {
 		pch = strtok(NULL, " ");
 		request->parameter.assign(pch);
 	}
-	pch = strtok(NULL, " ");  // get password
+	pch = strtok(NULL, " ");  // get user
 	request->user.assign(pch);
 	pch = strtok(NULL, " ");  // get password
 	request->pass.assign(pch);
@@ -278,13 +253,13 @@ void DFS::StartDFSService() {
               request.clients_sd = i; // client socket descriptor
               request.client_addr = client_address; // sockaddr_in
               request.addr_len = addr_length; // socklen_t
-							if (ProcessDFSRequest(&request) != true) {
-								SendBadRequest(i);
-								std::cout << "! client " << i << ": bad request: \"" <<
-										request.request_line << "\"" << std::endl;
-								continue;
-							}
-              std::cout << request.request_line << std::endl;
+              if (ProcessDFSRequest(&request) != true) {
+								std::cout << "bad request" << std::endl;
+              }
+              else std::cout << "good request" << std::endl;
+
+              //std::cout << buffer << std::endl;
+              //send(i, buffer, bytes_received, 0);
 							//*/
 						}
 					} // Enf of if i != listen_sd_

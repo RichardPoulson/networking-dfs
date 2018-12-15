@@ -44,7 +44,7 @@ static const int kOn = 1; // used for setsockopt
 static const int kOff = 0; // ""
 
 // PThread function
-void * AcceptConnection(void * shared_resources);
+void * PThread(void * arg);
 // send HTTP/1.1 400 Bad Request\r\n\r\n\r\n
 void SendBadRequest(int sock);
 // keeps sending until all bytes sent
@@ -78,14 +78,21 @@ public:
 	DFS(char * port_num, std::string folder_dir, int timeout = 20);
 	virtual ~DFS();
 protected:
+	char * buffer;
 	std::string folder_; // folder that DFS works from
   struct sockaddr_in server_addr_; // address for listening socket
   int listen_sd_; // listen/max/new socket descriptors
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
 	std::map<std::string, std::string> user_pass_map_;
-	pthread_t proxy_connections[kMaxNumDFSThreads];
-	pthread_attr_t pthread_attr; // attributes for the pthreads
+
+	pthread_t pthread_id_;
+
+	struct thread_info * thread_info_p_;
+	pthread_attr_t pthread_attr_;
+	int pthread_stack_size_;
+	void * pthread_result_p_;
+
 	struct SharedResources * shared_;
 	bool CreateBindSocket();
 	bool LoadConfigFile();
