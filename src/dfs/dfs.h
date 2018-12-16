@@ -50,6 +50,7 @@ ssize_t SendWholeMessage(int sock, char * buf, int buf_size);
 // data structure dealing with HTTP request messages
 struct RequestMessage
 {
+	pthread_t * pthread_ptr;
 	int clients_sd; // socket descriptor for client socket
   struct sockaddr_in client_addr; // client addr
 	socklen_t addr_len;

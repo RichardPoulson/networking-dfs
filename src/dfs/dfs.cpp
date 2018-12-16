@@ -25,12 +25,13 @@ void * PThread(void * arg) {
   shared->request_queue.pop();
   pthread_mutex_unlock(&shared->queue_mx);
 
-  pthread_mutex_lock(&shared->queue_mx);
-  shared->num_avail_pthreads_ += 1;
-  pthread_mutex_unlock(&shared->queue_mx);
   pthread_mutex_lock(&shared->cout_mx); // LOCK cout_mx
   std::cout << " ~ PThread finished ~" << std::endl;
   pthread_mutex_unlock(&shared->cout_mx); // UNLOCK cout_mx
+
+  pthread_mutex_lock(&shared->queue_mx); // LOCK queue_mx
+  shared->num_avail_pthreads_ += 1;
+  pthread_mutex_unlock(&shared->queue_mx);  // UNLOCK queue_mx
   pthread_cond_signal(&shared->pthreads_avail_cv);
   pthread_exit(NULL); // exit, don't return anything
 }
@@ -300,13 +301,15 @@ void DFS::StartDFSService() {
               if (shared_->num_avail_pthreads_ = 0)
                 pthread_cond_wait(&shared_->pthreads_avail_cv, &shared_->queue_mx);
               shared_->num_avail_pthreads_ -= 1;
-              shared_->request_queue.push(request);
               pthread_ptr = pthread_queue_.front(); // get available pthread
               pthread_queue_.pop();
-              if (pthread_create(pthread_ptr, NULL, PThread, shared_) != 0) {
+              request.pthread_ptr = pthread_ptr; // get available pthread
+              shared_->request_queue.push(request);
+              if (pthread_create(request.pthread_ptr, NULL, PThread, shared_) != 0) {
                   perror("pthread_create() failed");
                   exit(EXIT_FAILURE);
               }
+              // start PThread, then unlock
               pthread_mutex_unlock(&shared_->queue_mx);
               if (pthread_join(*pthread_ptr, &pthread_result_p_) != 0) {
                 perror("pthread_join() error");
