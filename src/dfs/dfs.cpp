@@ -14,6 +14,7 @@
 namespace networking_dfs {
 // PThread function
 void * PThread(void * arg) {
+  std::cout << " ~ PThread ~" << std::endl;
   struct SharedResources * shared = (struct SharedResources *)arg;
   pthread_exit(NULL); // exit, don't return anything
 }
@@ -172,7 +173,7 @@ bool DFS::ProcessDFSRequest(struct RequestMessage * request) {
 	std::string line;
 	std::string user;
 	std::string pass;
-	char cstring[256] = "";
+	char cstring[256] = {0};
 	char * pch;
 	strcpy(cstring,request->request_line.c_str()); // copy string to cstring
 	pch = strtok(cstring, " "); // get method
@@ -181,19 +182,15 @@ bool DFS::ProcessDFSRequest(struct RequestMessage * request) {
 		pch = strtok(NULL, " ");
 		request->parameter.assign(pch);
 	}
-	pch = strtok(NULL, " ");  // get user
+	pch = strtok(NULL, ",");  // get user
 	request->user.assign(pch);
-	pch = strtok(NULL, " ");  // get password
+	pch = strtok(NULL, ",");  // get password
 	request->pass.assign(pch);
-	std::cout << request->request_line << std::endl;
-	std::cout << request->method << ", " << request->parameter << ", " <<
-	        request->user << ", " << request->pass << std::endl;
 	return true;
 }
 
 void DFS::StartDFSService() {
 	std::cout << " ~ StartDFSService ~" << std::endl;
-
   int max_sd_ = listen_sd_; // listen socket has highest descriptor
 	int new_sd_; // socket descriptor for new client
 	bool continue_servicing = true; // if set to false, exits while loop below
@@ -249,7 +246,7 @@ void DFS::StartDFSService() {
 							}
 						}
 						else { // bytes_received  > 0
-              request.request_line.copy(buffer, bytes_received); // request
+              request.request_line.assign(buffer, bytes_received); // request
               request.clients_sd = i; // client socket descriptor
               request.client_addr = client_address; // sockaddr_in
               request.addr_len = addr_length; // socklen_t
@@ -257,8 +254,15 @@ void DFS::StartDFSService() {
 								std::cout << "bad request" << std::endl;
               }
               else std::cout << "good request" << std::endl;
-
-              //std::cout << buffer << std::endl;
+              if (pthread_create(&pthread_id_, NULL, PThread, shared_) != 0) {
+                perror("pthread_create() failed");
+                exit(EXIT_FAILURE);
+              }
+              if (pthread_join(pthread_id_, &pthread_result_p_) != 0) {
+                perror("pthread_join() error");
+                exit(EXIT_FAILURE);
+              }
+              std::cout << buffer << std::endl;
               //send(i, buffer, bytes_received, 0);
 							//*/
 						}

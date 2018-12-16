@@ -59,7 +59,6 @@ DFC::DFC()
 	std::cout << "~ DFC Constructor ~" << std::endl;
   buffer_ = (char*) malloc (kBufferSize); // allocate memory for buffer
 	LoadConfigFile(); // server names + addresses, and username + password
-  CreateSocket(); // create socket used for communicating with DFS
 	StartDFCService();
 }
 
@@ -69,13 +68,17 @@ DFC::~DFC() {
   delete [] buffer_;
 }
 
-bool DFC::BindSocket(std::string address_string) {
+bool DFC::CreateBindSocket(std::string address_string) {
   char * pch; // pointer to character
   char cstring[256] = {0};
   strcpy(cstring,address_string.c_str()); // server name and port
   pch = strtok(cstring, ":"); // space is delimiter
   pch = strtok(NULL, " ");  // ignore "Server"
   unsigned short int port = atoi(pch);
+  if ((sockfd_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("socket() failed");
+    return false;
+  }
   // set
   memset(&serv_addr_, '0', sizeof(serv_addr_));
   serv_addr_.sin_family = AF_INET; // IPv4
@@ -91,26 +94,42 @@ bool DFC::BindSocket(std::string address_string) {
     close(sockfd_);
     return false;
   }
-  std::cout << " ~ socket connected to port \"" << port << "\"." << std::endl;
-  return true;
-}
-
-bool DFC::CreateSocket() {
-  if ((sockfd_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socket() failed");
-    return false;
-  }
-  std::cout << " ~ socket created ~" << std::endl;
+  std::cout << " ~ socket created and connected to port \"" << port << "\"." << std::endl;
   return true;
 }
 
 void DFC::HandleInput(std::string input) {
+  int num_bytes = 0;
+  std::string method, filename;
+  char cstring[256] = {0};
+  char * pch;
+  strcpy(cstring,input.c_str()); // copy string to cstring
+  pch = strtok(cstring, " "); // first get username
+  method.assign(pch);
+  if (method != "list") {
+    std::cout << "..." << std::endl;
+    pch = strtok(NULL, " ");  // get password
+    filename.assign(pch);
+  }
+  memset(buffer_, '0', kBufferSize);
+  strcpy(buffer_, input.c_str());
+  strcat(buffer_, ",");
+  strcat(buffer_, user_.c_str());
+  strcat(buffer_, ",");
+  strcat(buffer_, password_.c_str());
+  std::cout << buffer_ << std::endl;
+
+  CreateBindSocket("127.0.0.1:10001");
+  send(sockfd_, buffer_, strlen(buffer_), 0);
+  close(sockfd_);
+
   struct HashStruct * hash = new struct HashStruct();
   HashMessage(input, hash);
   int remainder = hash->ull % kNumDFSServers;
-  BindSocket("127.0.0.1:10001");
 
-	//UploadFile(input);
+  //UploadFile(input);
+  //*/
+
 }
 
 void DFC::HashMessage(std::string message, struct HashStruct * hash_struct) {
@@ -181,23 +200,25 @@ bool DFC::LoadConfigFile() {
 }
 
 void DFC::SendCommand(std::string command_str) {
-	BindSocket("127.0.0.1:10001");
+	CreateBindSocket("127.0.0.1:10001");
   send(sockfd_, command_str.c_str(), command_str.size(), 0);
 }
 
 void DFC::StartDFCService() {
-	std::string input = "";
+	std::string input;
 	bool continue_prompting = true;
 	std::cout << std::endl << "Welcome to the distributed file system!" << std::endl;
 	while (continue_prompting) {
-		input.clear();
+    input.clear();
 		std::cout << "Please enter a command:  ";
-		std::cin >> input;
-		HandleInput(input);
-
-		if (input == "exit") {
+    std::getline(std::cin, input);
+    std::cout << "Input: " << input << std::endl;
+    if (input == "exit") {
 			continue_prompting = false;
 		}
+    else {
+      HandleInput(input);
+    }
 	}
 }
 
@@ -226,7 +247,6 @@ void DFC::UploadFile(std::string command_str) {
 	}
   */
 	std::cout << file_size << std::endl;
-	BindSocket("127.0.0.1:10001");
   send(sockfd_, msg, sizeof msg, 0);
 
   /*

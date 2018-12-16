@@ -75,8 +75,7 @@ protected:
 	struct addrinfo hints_, *servinfo_, *p_;
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
-	bool BindSocket(std::string addr_str);
-	bool CreateSocket();
+	bool CreateBindSocket(std::string addr_str);
 	void HandleInput(std::string input);
 	void HashMessage(std::string message, struct HashStruct * hash_struct);
 	bool LoadConfigFile();

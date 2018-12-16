@@ -87,7 +87,6 @@ protected:
 	std::map<std::string, std::string> user_pass_map_;
 
 	pthread_t pthread_id_;
-
 	struct thread_info * thread_info_p_;
 	pthread_attr_t pthread_attr_;
 	int pthread_stack_size_;
