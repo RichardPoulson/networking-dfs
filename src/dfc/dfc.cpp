@@ -107,9 +107,10 @@ void DFC::HandleInput(std::string input) {
   pch = strtok(cstring, " "); // first get username
   method.assign(pch);
   if (method != "list") {
-    std::cout << "..." << std::endl;
     pch = strtok(NULL, " ");  // get password
-    filename.assign(pch);
+    if(pch != NULL) {
+      filename.assign(pch);
+    }
   }
   memset(buffer_, '0', kBufferSize);
   strcpy(buffer_, input.c_str());
@@ -191,7 +192,8 @@ bool DFC::LoadConfigFile() {
 		pch = strtok(cstring, " "); // get "Password:" and discard
     pch = strtok(NULL, " ");  // get password
 		password_.assign(pch);
-		std::cout << "User: " << user_ << " , Pass: " << password_ << std::endl;
+		std::cout << "User: " << user_ << std::endl << "Pass: " << password_
+        << std::endl;
     config_file.close();
 		return true;
   }
@@ -212,7 +214,6 @@ void DFC::StartDFCService() {
     input.clear();
 		std::cout << "Please enter a command:  ";
     std::getline(std::cin, input);
-    std::cout << "Input: " << input << std::endl;
     if (input == "exit") {
 			continue_prompting = false;
 		}
@@ -223,7 +224,7 @@ void DFC::StartDFCService() {
 }
 
 void DFC::UploadFile(std::string command_str) {
-  char msg[] = "list Alice SimplePassword";
+  char msg[] = "list,Alice,SimplePassword";
 	struct HashStruct * hash = new struct HashStruct();
 	memset(hash, 0, sizeof(*hash));
 	HashMessage(command_str, hash);

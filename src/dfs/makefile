@@ -24,7 +24,7 @@ clean:
 
 #== Execute the compiled binary file
 test:
-	./$(NAME) 10001 20 # port 10001, 20 second timeout
+	./$(NAME) 10001 300 # port 10001, 5 minute timeout
 
 #== Recycle: remove made files, compile, then run test recipe
 recycle : $(NAME).cpp $(DEPENDENCIES)

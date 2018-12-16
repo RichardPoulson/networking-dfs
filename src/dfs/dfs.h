@@ -10,8 +10,6 @@
 #ifndef NETWORKING_DFS_H_
 #define NETWORKING_DFS_H_
 
-#include <string>
-
 #include <stddef.h> // NULL, nullptr_t
 #include <stdio.h> // FILE, size_t, fopen, fclose, fread, fwrite,
 #include <iostream> // cout
@@ -29,7 +27,7 @@
 #include <dirent.h> //  "Traverse directory", opendir, readdir,
 #include <cerrno> //  "C Errors", errno
 #include <regex> //  Regular expressions
-#include <pthread.h> // process threads,
+#include <pthread.h> // process threads
 #include <ctime> //  time_t, tm,
 #include <stack> //  stack of process threads
 #include <sys/ioctl.h> // set socket to be nonbinding
@@ -65,8 +63,10 @@ struct RequestMessage
 };
 // struct designed to be used between the WebProxy object and pthreads
 struct SharedResources {
+	int num_avail_pthreads_;
   struct timeval socket_timeout; // timeout value for socket
-  pthread_mutex_t file_mx, map_mx, queue_mx, cout_mx, continue_mx;
+	pthread_cond_t pthreads_avail_cv;
+  pthread_mutex_t file_mx, map_mx, queue_mx, cout_mx;
   std::queue<struct RequestMessage> request_queue;//client_queue;
   SharedResources();
   virtual ~SharedResources();
@@ -75,7 +75,7 @@ struct SharedResources {
 // WebProxy constructor takes two arguments (see below for default values).
 class DFS {
 public:
-	DFS(char * port_num, std::string folder_dir, int timeout = 20);
+	DFS(char * port_num, std::string folder_dir, int timeout = 300);
 	virtual ~DFS();
 protected:
 	char * buffer;
@@ -85,8 +85,8 @@ protected:
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
 	std::map<std::string, std::string> user_pass_map_;
-
-	pthread_t pthread_id_;
+	std::queue<pthread_t *> pthread_queue_;
+	pthread_t pthread_id_[kMaxNumDFSThreads];
 	struct thread_info * thread_info_p_;
 	pthread_attr_t pthread_attr_;
 	int pthread_stack_size_;
