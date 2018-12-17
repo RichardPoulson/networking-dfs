@@ -12,6 +12,8 @@ http://www.cplusplus.com/reference/string/stoul/
 https://en.wikipedia.org/wiki/MD5
 http://www.cplusplus.com/reference/string/string/
 https://stackoverflow.com/questions/49764841/c-stdmap-get-the-key-at-a-specific-offset
+https://stackoverflow.com/questions/7856453/accessing-map-value-by-index
+
 ==============================================================================*/
 
 #include "dfc.h"
@@ -29,25 +31,6 @@ void *get_in_addr(struct sockaddr *sa)
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-ssize_t SendWholeMessage(int sock, char * buf, int buf_size)
-{
-	// http://beej.us/guide/bgnet/html/single/bgnet.html#sendall
-	ssize_t total_sent = 0;        // how many bytes we've sent
-  ssize_t bytes_left = buf_size; // how many we have left to send
-  ssize_t bytes_sent;
-
-  while(total_sent < buf_size) {
-		bytes_sent = send(sock, buf + total_sent, bytes_left, 0);
-    if (bytes_sent == -1) {
-			perror("send() failed");
-			break;
-		}
-    total_sent += bytes_sent;
-    bytes_left -= bytes_sent;
-  }
-	return total_sent;
-}
-
 HashStruct::HashStruct() {
 	str = "";
 	ull = 0;
@@ -56,8 +39,9 @@ HashStruct::~HashStruct() {}
 
 DFC::DFC()
 {
-	std::cout << "~ DFC Constructor ~" << std::endl;
-  buffer_ = (char*) malloc (kBufferSize); // allocate memory for buffer
+  std::cout << "~ DFC Constructor ~" << std::endl;
+  for (int i=0; i<4; i++)
+    buffer_[i] = (char*) malloc (kBufferSize / 4);
 	LoadConfigFile(); // server names + addresses, and username + password
 	StartDFCService();
 }
@@ -65,7 +49,8 @@ DFC::DFC()
 DFC::~DFC() {
   std::cout << "~ DFC Destructor ~" << std::endl;
   close(sockfd_);
-  delete [] buffer_;
+  for (int i=0; i<4; i++)
+    delete [] buffer_[i];
 }
 
 bool DFC::CreateBindSocket(std::string address_string) {
@@ -90,7 +75,6 @@ bool DFC::CreateBindSocket(std::string address_string) {
     return false;
   }
   if (connect(sockfd_, (struct sockaddr *)&serv_addr_, sizeof(serv_addr_)) < 0) {
-    perror("connect() failed");
     close(sockfd_);
     return false;
   }
@@ -99,6 +83,7 @@ bool DFC::CreateBindSocket(std::string address_string) {
 }
 
 void DFC::HandleInput(std::string input) {
+  int i;
   int num_bytes = 0;
   std::string method, filename;
   char cstring[256] = {0};
@@ -112,16 +97,49 @@ void DFC::HandleInput(std::string input) {
       filename.assign(pch);
     }
   }
-  memset(buffer_, '0', kBufferSize);
-  strcpy(buffer_, input.c_str());
-  strcat(buffer_, ",");
-  strcat(buffer_, user_.c_str());
-  strcat(buffer_, ",");
-  strcat(buffer_, password_.c_str());
-  std::cout << buffer_ << std::endl;
+  for(i=0; i<4; i++)
+    memset(buffer_[i], '0', kBufferSize / 4);
+  strcpy(buffer_[0], input.c_str());
+  strcat(buffer_[0], ",");
+  strcat(buffer_[0], user_.c_str());
+  strcat(buffer_[0], ",");
+  strcat(buffer_[0], password_.c_str());
+  strcat(buffer_[0], "\0");
+  if (method == "list") {
+    map_it = server_map_.begin();
+    for(i=1; i<4; i++)
+      strcpy(buffer_[i], buffer_[0]);
+    for (int i=0; i<4; i++) {
+      if (CreateBindSocket(map_it->second)) { // if connected ok
+        send(sockfd_, buffer_[i], strlen(buffer_[i])+1, 0);
+        memset(buffer_[i], '0', kBufferSize / 4);
+        num_bytes = recv(sockfd_, buffer_[i], kBufferSize / 4, 0);
+        if (strcmp(buffer_[i], "ok") != 0) {
+          // server didn't okay credentials, print server message
+          std::cout << buffer_[i] << std::endl;
+          close(sockfd_);
+        }
+        else {
+          send(sockfd_, buffer_[i], num_bytes, 0); // send "ok" back
+          memset(buffer_[i], '0', kBufferSize / 4);
+          num_bytes = recv(sockfd_, buffer_[i], kBufferSize / 4, 0);
+          std::cout << buffer_[i] << std::endl;
+          close(sockfd_);
+        }
+      }
+      map_it++;
+    }
+  }
+  else if (method == "get") {
 
-  CreateBindSocket("127.0.0.1:10001");
-  send(sockfd_, buffer_, strlen(buffer_), 0);
+  }
+  else if (method == "put") {
+
+  }
+  else {
+
+  }
+  //*/
   close(sockfd_);
 
   struct HashStruct * hash = new struct HashStruct();
@@ -230,10 +248,7 @@ void DFC::UploadFile(std::string command_str) {
 	HashMessage(command_str, hash);
 	std::cout << (hash->ull % 4) << std::endl;
 	size_t file_size = 0;
-	char part1[kBufferSize / 4] = "";
-	char part2[kBufferSize / 4] = "";
-	char part3[kBufferSize / 4] = "";
-	char part4[kBufferSize / 4] = "";
+
   /*
 	FILE * fp = fopen(file.c_str(), "rb"); // open the file in read mode (binary)
 	if (fp != NULL) {

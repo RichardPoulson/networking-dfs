@@ -20,8 +20,9 @@
 #include <string>
 #include <string.h> //  strlen, strcpy, strcat, strcmp
 #include <netdb.h>
-#include <sys/types.h>
+#include <sys/types.h> //  mkdir
 #include <sys/socket.h> //  socklen_t,
+#include <sys/stat.h> // mkdir
 #include <netinet/in.h> //  sockaddr_in, INADDR_ANY,
 #include <arpa/inet.h> //  htonl, htons, inet_ntoa,
 #include <dirent.h> //  "Traverse directory", opendir, readdir,
@@ -29,6 +30,8 @@
 #include <regex> //  Regular expressions
 #include <pthread.h> // process threads
 #include <ctime> //  time_t, tm,
+#include <chrono>         // std::chrono::seconds
+#include <thread>         // std::this_thread::sleep_for
 #include <stack> //  stack of process threads
 #include <sys/ioctl.h> // set socket to be nonbinding
 #include <queue>
@@ -55,10 +58,11 @@ struct RequestMessage
   struct sockaddr_in client_addr; // client addr
 	socklen_t addr_len;
 	std::string request_line; // entire request from message
-  std::string method; // GET,HEAD,POST
+  std::string method; // GET PUT, LIST
   std::string parameter; // e.g. test.txt
 	std::string user;
 	std::string pass;
+	std::string folder;
   RequestMessage();
   virtual ~RequestMessage();
 };
@@ -69,6 +73,7 @@ struct SharedResources {
 	pthread_cond_t pthreads_avail_cv;
   pthread_mutex_t file_mx, map_mx, queue_mx, cout_mx;
   std::queue<struct RequestMessage> request_queue;//client_queue;
+	std::queue<pthread_t *> pthread_queue;
   SharedResources();
   virtual ~SharedResources();
 };
@@ -86,7 +91,6 @@ protected:
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
 	std::map<std::string, std::string> user_pass_map_;
-	std::queue<pthread_t *> pthread_queue_;
 	pthread_t pthread_id_[kMaxNumDFSThreads];
 	struct thread_info * thread_info_p_;
 	pthread_attr_t pthread_attr_;

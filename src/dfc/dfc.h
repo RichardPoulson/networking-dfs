@@ -48,9 +48,6 @@ static const int kOff = 0; // ""
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa);
 
-ssize_t SendWholeMessage(int sock, char * buf, int buf_size);
-// data structure dealing with HTTP request messages
-
 // data structure dealing with HTTP request messages
 struct HashStruct
 {
@@ -66,9 +63,10 @@ public:
 	DFC();
 	virtual ~DFC();
 protected:
-	char * buffer_;
+	char * buffer_[4];
 	int sockfd_; // file descriptor for socket connecting to DFS
 	std::map<std::string, std::string> server_map_;
+	std::map<std::string, std::string>::const_iterator map_it;
 	std::string user_;
 	std::string password_;
 	struct sockaddr_in serv_addr_;

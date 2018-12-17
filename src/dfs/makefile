@@ -23,11 +23,17 @@ clean:
 	$(CLEAN)
 
 #== Execute the compiled binary file
-test:
-	./$(NAME) 10001 300 # port 10001, 5 minute timeout
+test1:
+	./$(NAME) 10001 DFS1 600 # port 10001, folder DFS1, timeout of 10 minutes
+test2:
+	./$(NAME) 10002 DFS2 600 # port 10001, folder DFS1, timeout of 10 minutes
+test3:
+	./$(NAME) 10003 DFS3 600 # port 10001, folder DFS1, timeout of 10 minutes
+test4:
+	./$(NAME) 10004 DFS4 600 # port 10001, folder DFS1, timeout of 10 minutes
 
 #== Recycle: remove made files, compile, then run test recipe
 recycle : $(NAME).cpp $(DEPENDENCIES)
 	$(MAKE) clean
 	$(MAKE)
-	$(MAKE) test # Run the compiled binary file
+	$(MAKE) test1 # Run the compiled binary file

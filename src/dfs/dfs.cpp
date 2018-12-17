@@ -9,6 +9,7 @@ Description :
 http://www.cplusplus.com/reference/condition_variable/condition_variable/
 https://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread.h.html
 https://www.ibm.com/support/knowledgecenter/en/ssw_ibm_i_72/apis/users_74.htm
+https://stackoverflow.com/questions/10356712/mkdir-windows-vs-linux
 ==============================================================================*/
 
 #include "dfs.h"
@@ -20,10 +21,63 @@ namespace networking_dfs {
 void * PThread(void * arg) {
   std::cout << " ~ PThread ~" << std::endl;
   struct SharedResources * shared = (struct SharedResources *)arg;
-  pthread_mutex_lock(&shared->queue_mx);
+  char * buffer = (char*) malloc (kBufferSize);
+  DIR * dir_ptr;
+  struct dirent * entry_ptr;
+  std::filebuf * filebuf_ptr; // file buffer pointer, used for getting file size
+  std::string str = ""; // used to easilty modify file paths
+  std::ifstream ifs; // input file stream, used to read from files.
+  int num_bytes;
+  pthread_mutex_lock(&shared->queue_mx); // LOCK queue_mx
   struct RequestMessage request = shared->request_queue.front();
   shared->request_queue.pop();
-  pthread_mutex_unlock(&shared->queue_mx);
+  pthread_mutex_unlock(&shared->queue_mx);  // UNLOCK queue_mx
+  str.append("./" + request.folder + "/" + request.user + "/");
+  pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
+  // if returns NULL, make folder for user
+  if((dir_ptr = opendir(str.c_str())) == NULL) {
+    #ifdef linux
+      mkdir(str.c_str(), 0777);
+    #elif _WIN32
+      _mkdir(strPath.c_str());
+    #else
+      mkdir(str.c_str(), 0777);
+    #endif
+    dir_ptr = opendir(str.c_str());
+  }
+  pthread_mutex_unlock(&shared->file_mx);  // UNLOCK file_mx
+  if (request.method == "list") {
+    pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
+    memset(buffer, '0', kBufferSize);
+    strcpy(buffer, "list\n");
+    while(entry_ptr = readdir(dir_ptr)){
+      if((strcmp(entry_ptr->d_name, ".") != 0)
+          && (strcmp(entry_ptr->d_name, "..") != 0 )) {
+        strcat(buffer, entry_ptr->d_name);
+        strcat(buffer, "\n");
+      }
+    }
+    strcat(buffer, "\0"); // null terminator
+    closedir(dir_ptr);
+    std::cout << buffer << std::endl;
+    pthread_mutex_unlock(&shared->file_mx); // UNLOCK file_mx
+    send(request.clients_sd, buffer, strlen(buffer) + 1, 0); // don't forget NULL
+  }
+  else if (request.method == "get") {
+    pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
+    ifs.open(request.parameter.c_str(), std::ifstream::binary);
+    filebuf_ptr = ifs.rdbuf();
+    num_bytes = filebuf_ptr->pubseekoff(0,ifs.end,ifs.in);
+    filebuf_ptr->pubseekpos(0,ifs.in); // go back to beginning
+    ifs.read(buffer, num_bytes);
+    pthread_mutex_unlock(&shared->file_mx); // UNLOCK file_mx
+    send(request.clients_sd, buffer, num_bytes, 0);
+  }
+  else if (request.method == "put") {
+
+
+  }
+  std::this_thread::sleep_for (std::chrono::seconds(5));
 
   pthread_mutex_lock(&shared->cout_mx); // LOCK cout_mx
   std::cout << " ~ PThread finished ~" << std::endl;
@@ -31,7 +85,9 @@ void * PThread(void * arg) {
 
   pthread_mutex_lock(&shared->queue_mx); // LOCK queue_mx
   shared->num_avail_pthreads_ += 1;
+  shared->pthread_queue.push(request.pthread_ptr);
   pthread_mutex_unlock(&shared->queue_mx);  // UNLOCK queue_mx
+  delete [] buffer;
   pthread_cond_signal(&shared->pthreads_avail_cv);
   pthread_exit(NULL); // exit, don't return anything
 }
@@ -95,14 +151,13 @@ SharedResources::~SharedResources()
   pthread_cond_destroy(&pthreads_avail_cv);
 	std::cout << " ~ SharedResources Destructor ~" << std::endl;
 }
-//
+// char * port_num, std::string folder_dir, int timeout = 300
 DFS::DFS(char * port_num, std::string folder_dir, int timeout)
 {
   shared_ = new struct SharedResources();
   for(int i = 0; i < 8; i++) {
-    pthread_queue_.push(&pthread_id_[i]);
+    shared_->pthread_queue.push(&pthread_id_[i]);
   }
-  std::queue<pthread_t> pthread_queue_;
 	std::cout << " ~ DFS Constructor ~" << std::endl;
   buffer = (char*) malloc (kBufferSize);
 	bzero((char *) &server_addr_, sizeof(server_addr_));
@@ -111,6 +166,7 @@ DFS::DFS(char * port_num, std::string folder_dir, int timeout)
 	server_addr_.sin_port = htons(atoi(port_num));
 	timeout_.tv_sec = timeout; // for listening socket (in seconds)
 	timeout_.tv_usec = 0;
+  folder_.assign(folder_dir);
 	LoadConfigFile();
 	CreateBindSocket();
 	StartDFSService();
@@ -135,14 +191,6 @@ bool DFS::CreateBindSocket() {
 		close(listen_sd_);
 		return false;
 	}
-  /*==  set port to be non-blocking
-	// set listen socket to be non-binding
-	if (ioctl(listen_sd_, FIONBIO, (char *)&on_) < 0) {
-		perror("ioctl() failed");
-		close(listen_sd_);
-		return false;
-	}
-  */
 	//  Define the server's Internet address
 	if (bind(listen_sd_, (struct sockaddr *)&server_addr_, sizeof(server_addr_)) < 0) {
 	    perror("ERROR on binding");
@@ -225,6 +273,7 @@ bool DFS::ProcessDFSRequest(struct RequestMessage * request) {
   token.clear();
   std::getline(string_stream, token, ',');
   request->pass.assign(token);
+  request->folder.assign(folder_);
   std::cout << request->method << std::endl;
   std::cout << request->parameter << std::endl;
   std::cout << request->user << std::endl;
@@ -297,12 +346,22 @@ void DFS::StartDFSService() {
               if (ProcessDFSRequest(&request) != true)
 								std::cout << "bad request" << std::endl;
               else std::cout << "good request" << std::endl;
+              if (user_pass_map_.count(request.user) == 1) {
+                if (user_pass_map_[request.user] == request.pass) {
+                  memset(buffer, '0', kBufferSize);
+                  strcpy(buffer, "ok\0");
+                  send(i, buffer, strlen(buffer) + 1, 0); // include \0
+                  memset(buffer, '0', kBufferSize);
+                  recv(i, buffer, kBufferSize, 0);
+                }
+              }
               pthread_mutex_lock(&shared_->queue_mx);
-              if (shared_->num_avail_pthreads_ = 0)
+              if (shared_->num_avail_pthreads_ == 0)
                 pthread_cond_wait(&shared_->pthreads_avail_cv, &shared_->queue_mx);
               shared_->num_avail_pthreads_ -= 1;
-              pthread_ptr = pthread_queue_.front(); // get available pthread
-              pthread_queue_.pop();
+              pthread_ptr = shared_->pthread_queue.front(); // get available pthread
+              shared_->pthread_queue.pop();
+              std::cout << shared_->pthread_queue.size() << std::endl;
               request.pthread_ptr = pthread_ptr; // get available pthread
               shared_->request_queue.push(request);
               if (pthread_create(request.pthread_ptr, NULL, PThread, shared_) != 0) {
@@ -311,24 +370,12 @@ void DFS::StartDFSService() {
               }
               // start PThread, then unlock
               pthread_mutex_unlock(&shared_->queue_mx);
+              /*
               if (pthread_join(*pthread_ptr, &pthread_result_p_) != 0) {
                 perror("pthread_join() error");
                 exit(EXIT_FAILURE);
               }
-
-
-              //std::cout << request.request_line << std::endl;
-              //close(i);
-              /*
-							FD_CLR(i, &master_set_);
-							if (i == max_sd_) {
-								if (FD_ISSET(max_sd_, &master_set_) == 0) {
-									max_sd_ = max_sd_ - 1;
-								}
-							}
               */
-              //send(i, buffer, bytes_received, 0);
-
 						}
 					} // Enf of if i != listen_sd_
 				} // End of if (FD_ISSET(i, &read_fds_))
@@ -347,6 +394,9 @@ void DFS::StartDFSService() {
 			}
 		}
 	}
+  // make sure all PThreads exit
+  for (i=0; i<kMaxNumDFSThreads; i++)
+    pthread_join(pthread_id_[i], &pthread_result_p_);
 	free(buffer);
 }
 } // namespace networking_dfs
