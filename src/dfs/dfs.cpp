@@ -19,7 +19,7 @@ https://stackoverflow.com/questions/10356712/mkdir-windows-vs-linux
 namespace networking_dfs {
 // PThread function
 void * PThread(void * arg) {
-  std::cout << " ~ PThread ~" << std::endl;
+  //std::cout << " ~ PThread ~" << std::endl;
   struct SharedResources * shared = (struct SharedResources *)arg;
   char * buffer = (char*) malloc (kBufferSize);
   DIR * dir_ptr;
@@ -38,9 +38,10 @@ void * PThread(void * arg) {
 
   pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
   // if returns NULL, make folder for user
-  std::cout << str << std::endl;
   if((dir_ptr = opendir(str.c_str())) == NULL) {
-    std::cout << "opendir(str.c_str()) == NULL" << std::endl;
+    pthread_mutex_lock(&shared->cout_mx); // LOCK cout_mx
+    std::cout << "+ making directory " << str << std::endl;
+    pthread_mutex_unlock(&shared->cout_mx); // UNLOCK cout_mx
     #ifdef linux
       mkdir(str.c_str(), 0777);
     #elif _WIN32
@@ -56,15 +57,13 @@ void * PThread(void * arg) {
     pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
     memset(buffer, '0', kBufferSize);
     strcpy(buffer, "list\n");
-    /*
-    while(entry_ptr = readdir(dir_ptr)){
+    while((entry_ptr = readdir(dir_ptr))){
       if((strcmp(entry_ptr->d_name, ".") != 0)
           && (strcmp(entry_ptr->d_name, "..") != 0 )) {
         strcat(buffer, entry_ptr->d_name);
         strcat(buffer, "\n");
       }
     }
-    */
     strcat(buffer, "\0"); // null terminator
     closedir(dir_ptr);
     std::cout << buffer << std::endl;
@@ -87,9 +86,9 @@ void * PThread(void * arg) {
   }
   std::this_thread::sleep_for (std::chrono::seconds(5));
 
-  pthread_mutex_lock(&shared->cout_mx); // LOCK cout_mx
-  std::cout << " ~ PThread finished ~" << std::endl;
-  pthread_mutex_unlock(&shared->cout_mx); // UNLOCK cout_mx
+  //pthread_mutex_lock(&shared->cout_mx); // LOCK cout_mx
+  //std::cout << " ~ PThread finished ~" << std::endl;
+  //pthread_mutex_unlock(&shared->cout_mx); // UNLOCK cout_mx
 
   pthread_mutex_lock(&shared->queue_mx); // LOCK queue_mx
   shared->num_avail_pthreads_ += 1;
@@ -97,7 +96,6 @@ void * PThread(void * arg) {
   pthread_mutex_unlock(&shared->queue_mx);  // UNLOCK queue_mx
   //*/
 
-  std::cout << " ~ PThread ~" << std::endl;
   delete [] buffer;
   pthread_cond_signal(&shared->pthreads_avail_cv);
   pthread_exit(NULL); // exit, don't return anything
@@ -286,10 +284,6 @@ bool DFS::ProcessDFSRequest(struct RequestMessage * request) {
   std::getline(string_stream, token, ',');
   request->pass.assign(token);
   request->folder.assign(folder_);
-  std::cout << request->method << std::endl;
-  std::cout << request->parameter << std::endl;
-  std::cout << request->user << std::endl;
-  std::cout << request->pass << std::endl;
   return true;
 }
 
@@ -306,8 +300,10 @@ void DFS::StartDFSService() {
 	struct sockaddr_in client_address; // client addr
 	socklen_t addr_length;
 	char * buffer = (char*) malloc (kBufferSize);
-	std::string error_message = "ERROR 403 Forbidden\r\n\r\n\r\n";
-	std::cout << "About to enter service loop." << std::endl;
+	char invalid_msg[] = "Invalid Username/Password. Please try again.";
+  char bad_request_msg[] = "Invalid request. Please try another request.";
+  char ok_msg[] = "ok";
+	std::cout << " ~ Listening for clients ~" << std::endl;
 
 	while (continue_servicing) {
 		// copy master set to working set
@@ -351,21 +347,41 @@ void DFS::StartDFSService() {
 							}
 						}
 						else { // bytes_received  > 0
-              request.request_line.assign(buffer, bytes_received); // request
+              request.request_line.assign(buffer, bytes_received); // reques
               request.clients_sd = i; // client socket descriptor
               request.client_addr = client_address; // sockaddr_in
               request.addr_len = addr_length; // socklen_t
-              if (ProcessDFSRequest(&request) != true)
-								std::cout << "bad request" << std::endl;
-              else std::cout << "good request" << std::endl;
+              pthread_mutex_lock(&shared_->cout_mx); // LOCK cout_mx
+              std::cout << "new message: \"" << request.request_line <<
+                  "\"" << std::endl;
+              pthread_mutex_unlock(&shared_->cout_mx); // UNLOCK cout_mxt
+              if (ProcessDFSRequest(&request) != true) {
+                send(i, bad_request_msg, sizeof(bad_request_msg), 0);
+                continue;
+              }
+              //== CHECK CREDENTIALS
               if (user_pass_map_.count(request.user) == 1) {
-                if (user_pass_map_[request.user] == request.pass) {
+                // user exists and passwords match
+                if (strcmp(request.pass.c_str(), user_pass_map_[request.user].c_str()) == 0) {
+                  pthread_mutex_lock(&shared_->cout_mx); // LOCK cout_mx
+                  std::cout << "user authenticated" << std::endl;
+                  pthread_mutex_unlock(&shared_->cout_mx); // UNLOCK cout_mx
+                  // send acknowledgement
+                  send(i, ok_msg, sizeof(ok_msg), 0); // include \0
                   memset(buffer, '0', kBufferSize);
-                  strcpy(buffer, "ok\0");
-                  send(i, buffer, strlen(buffer) + 1, 0); // include \0
-                  memset(buffer, '0', kBufferSize);
+                  // get acknowledgement
                   recv(i, buffer, kBufferSize, 0);
                 }
+                // user exists, but password doesn't match
+                else {
+                  send(i, invalid_msg, sizeof(invalid_msg), 0);
+                  continue; // move on to next client
+                }
+              }
+              // user doesn't exist
+              else {
+                send(i, invalid_msg, sizeof(invalid_msg), 0);
+                continue; // move on to next client
               }
               pthread_mutex_lock(&shared_->queue_mx);
               if (shared_->num_avail_pthreads_ == 0)
@@ -373,7 +389,6 @@ void DFS::StartDFSService() {
               shared_->num_avail_pthreads_ -= 1;
               pthread_ptr = shared_->pthread_queue.front(); // get available pthread
               shared_->pthread_queue.pop();
-              std::cout << shared_->pthread_queue.size() << std::endl;
               request.pthread_ptr = pthread_ptr; // get available pthread
               shared_->request_queue.push(request);
               if (pthread_create(request.pthread_ptr, NULL, PThread, shared_) != 0) {
@@ -382,12 +397,6 @@ void DFS::StartDFSService() {
               }
               // start PThread, then unlock
               pthread_mutex_unlock(&shared_->queue_mx);
-              /*
-              if (pthread_join(*pthread_ptr, &pthread_result_p_) != 0) {
-                perror("pthread_join() error");
-                exit(EXIT_FAILURE);
-              }
-              */
 						}
 					} // Enf of if i != listen_sd_
 				} // End of if (FD_ISSET(i, &read_fds_))

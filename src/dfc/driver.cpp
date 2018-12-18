@@ -4,7 +4,7 @@
 // Version     : 1.0
 // Last edit   : 12/2/2018
 //
-// Description : driver program that creates a DistributedFileServer
+// Description : driver program that creates a distributed file system client
 //============================================================================
 
 #include <csignal>

@@ -93,10 +93,10 @@ void DFC::HandleInput(std::string input) {
   method.assign(pch);
   if (method != "list") {
     pch = strtok(NULL, " ");  // get password
-    if(pch != NULL) {
+    if(pch != NULL)
       filename.assign(pch);
-    }
   }
+  // CLEAR ALL BUFFERS
   for(i=0; i<4; i++)
     memset(buffer_[i], '0', kBufferSize / 4);
   strcpy(buffer_[0], input.c_str());
@@ -116,7 +116,7 @@ void DFC::HandleInput(std::string input) {
         num_bytes = recv(sockfd_, buffer_[i], kBufferSize / 4, 0);
         if (strcmp(buffer_[i], "ok") != 0) {
           // server didn't okay credentials, print server message
-          //std::cout << buffer_[i] << std::endl;
+          std::cout << buffer_[i] << std::endl;
           close(sockfd_);
         }
         else {
@@ -153,11 +153,9 @@ void DFC::HandleInput(std::string input) {
 
 void DFC::HashMessage(std::string message, struct HashStruct * hash_struct) {
 	MD5_CTX md5;
-	int i;
 	std::string result;
 	result.reserve(32);  // C++11 only, otherwise ignore
 	unsigned char buffer_md5[16];
-	unsigned long long int ull = 0;
 	const char* test;
 	MD5_Init(&md5);
 	test = message.c_str();

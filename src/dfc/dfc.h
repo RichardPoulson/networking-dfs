@@ -13,31 +13,31 @@
 // crypto++
 #define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 
+#include <arpa/inet.h> //  htonl, htons, inet_ntoa,
+#include <netinet/in.h> //  sockaddr_in, INADDR_ANY,
+#include <openssl/md5.h> // MD5 hash
+#include <sys/ioctl.h> // set socket to be nonbinding
+#include <sys/socket.h> //  socklen_t,
+#include <sys/types.h>
+#include <cerrno> //  "C Errors", errno
+#include <ctime> //  time_t, tm,
+#include <dirent.h> //  "Traverse directory", opendir, readdir,
+#include <fstream> // ifstream
+#include <iostream> // cout
+#include <map>
+#include <netdb.h>
+#include <pthread.h> // process threads,
+#include <queue>
+#include <signal.h> // signal(int void (*func)(int))
+#include <stack> //  stack of process threads
 #include <stddef.h> // NULL, nullptr_t
 #include <stdio.h> // FILE, size_t, fopen, fclose, fread, fwrite,
-#include <iostream> // cout
-#include <fstream> // ifstream
-#include <signal.h> // signal(int void (*func)(int))
-#include <unistd.h>
 #include <stdlib.h> //  exit, EXIT_FAILURE, EXIT_SUCCESS
 #include <string>
 #include <string.h> //  strlen, strcpy, strcat, strcmp
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h> //  socklen_t,
-#include <sys/ioctl.h> // set socket to be nonbinding
-#include <netinet/in.h> //  sockaddr_in, INADDR_ANY,
-#include <arpa/inet.h> //  htonl, htons, inet_ntoa,
-#include <dirent.h> //  "Traverse directory", opendir, readdir,
-#include <cerrno> //  "C Errors", errno
-#include <regex> //  Regular expressions
-#include <pthread.h> // process threads,
-#include <ctime> //  time_t, tm,
-#include <stack> //  stack of process threads
+#include <unistd.h>
 
-#include <queue>
-#include <map> // map of string to regex
-#include <openssl/md5.h> // MD5 hash
+//#include <regex> //  Regular expressions
 
 namespace networking_dfs_dfc {
 static const int kBufferSize = 10485760; // 10 MB
