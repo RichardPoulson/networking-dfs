@@ -116,14 +116,14 @@ void DFC::HandleInput(std::string input) {
         num_bytes = recv(sockfd_, buffer_[i], kBufferSize / 4, 0);
         if (strcmp(buffer_[i], "ok") != 0) {
           // server didn't okay credentials, print server message
-          std::cout << buffer_[i] << std::endl;
+          //std::cout << buffer_[i] << std::endl;
           close(sockfd_);
         }
         else {
           send(sockfd_, buffer_[i], num_bytes, 0); // send "ok" back
           memset(buffer_[i], '0', kBufferSize / 4);
           num_bytes = recv(sockfd_, buffer_[i], kBufferSize / 4, 0);
-          std::cout << buffer_[i] << std::endl;
+          //std::cout << buffer_[i] << std::endl;
           close(sockfd_);
         }
       }

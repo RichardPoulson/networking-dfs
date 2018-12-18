@@ -28,14 +28,19 @@ void * PThread(void * arg) {
   std::string str = ""; // used to easilty modify file paths
   std::ifstream ifs; // input file stream, used to read from files.
   int num_bytes;
+
   pthread_mutex_lock(&shared->queue_mx); // LOCK queue_mx
   struct RequestMessage request = shared->request_queue.front();
   shared->request_queue.pop();
   pthread_mutex_unlock(&shared->queue_mx);  // UNLOCK queue_mx
-  str.append("./" + request.folder + "/" + request.user + "/");
+
+  str.append(request.folder + "/" + request.user + "/");
+
   pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
   // if returns NULL, make folder for user
+  std::cout << str << std::endl;
   if((dir_ptr = opendir(str.c_str())) == NULL) {
+    std::cout << "opendir(str.c_str()) == NULL" << std::endl;
     #ifdef linux
       mkdir(str.c_str(), 0777);
     #elif _WIN32
@@ -46,10 +51,12 @@ void * PThread(void * arg) {
     dir_ptr = opendir(str.c_str());
   }
   pthread_mutex_unlock(&shared->file_mx);  // UNLOCK file_mx
+
   if (request.method == "list") {
     pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
     memset(buffer, '0', kBufferSize);
     strcpy(buffer, "list\n");
+    /*
     while(entry_ptr = readdir(dir_ptr)){
       if((strcmp(entry_ptr->d_name, ".") != 0)
           && (strcmp(entry_ptr->d_name, "..") != 0 )) {
@@ -57,6 +64,7 @@ void * PThread(void * arg) {
         strcat(buffer, "\n");
       }
     }
+    */
     strcat(buffer, "\0"); // null terminator
     closedir(dir_ptr);
     std::cout << buffer << std::endl;
@@ -87,6 +95,9 @@ void * PThread(void * arg) {
   shared->num_avail_pthreads_ += 1;
   shared->pthread_queue.push(request.pthread_ptr);
   pthread_mutex_unlock(&shared->queue_mx);  // UNLOCK queue_mx
+  //*/
+
+  std::cout << " ~ PThread ~" << std::endl;
   delete [] buffer;
   pthread_cond_signal(&shared->pthreads_avail_cv);
   pthread_exit(NULL); // exit, don't return anything
@@ -217,6 +228,7 @@ bool DFS::LoadConfigFile() {
 	char * pch;
   std::ifstream config_file("dfs.conf");
   if(config_file.is_open()) {
+    std::cout << "dfs.conf opened" << std::endl;
 		while(getline(config_file, line)) {
 			bzero(cstring, sizeof cstring);
 			strcpy(cstring,line.c_str()); // copy string to cstring
