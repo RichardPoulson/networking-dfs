@@ -82,11 +82,33 @@ bool DFC::CreateBindSocket(std::string address_string) {
   return true;
 }
 
+int DFC::GetFileSize(std::string file_name) {
+  std::ifstream ifs;
+  std::filebuf * file_buf_ptr; // file buffer pointer, used for getting file size
+  int num_bytes;
+  ifs.open(file_name, std::ifstream::binary);
+  if(ifs.is_open()) {
+    file_buf_ptr = ifs.rdbuf();
+    num_bytes = file_buf_ptr->pubseekoff(0, ifs.end, ifs.in);
+    file_buf_ptr->pubseekpos(0, ifs.in); // go back to beginning
+    ifs.close();
+    return num_bytes;
+  }
+  else {
+    perror("GetFileSize() failed");
+    return -1;
+  }
+}
+
 void DFC::HandleInput(std::string input) {
-  int i;
+  struct HashStruct * hash = new struct HashStruct();
+  std::ifstream file_ifs;
+  std::ofstream file_ofs;
+  int i, partition, remainder;
   int num_bytes = 0;
   std::string method, filename;
   char cstring[256] = {0};
+  char files[4][256] = {0};
   char * pch;
   strcpy(cstring,input.c_str()); // copy string to cstring
   pch = strtok(cstring, " "); // first get username
@@ -105,10 +127,14 @@ void DFC::HandleInput(std::string input) {
   strcat(buffer_[0], ",");
   strcat(buffer_[0], password_.c_str());
   strcat(buffer_[0], "\0");
+
+  HashMessage(filename.c_str(), hash);
+  remainder = hash->ull % kNumDFSServers;
   if (method == "list") {
     map_it = server_map_.begin();
     for(i=1; i<4; i++)
       strcpy(buffer_[i], buffer_[0]);
+    std::cout << "list" << std::endl;
     for (int i=0; i<4; i++) {
       if (CreateBindSocket(map_it->second)) { // if connected ok
         send(sockfd_, buffer_[i], strlen(buffer_[i])+1, 0);
@@ -123,7 +149,7 @@ void DFC::HandleInput(std::string input) {
           send(sockfd_, buffer_[i], num_bytes, 0); // send "ok" back
           memset(buffer_[i], '0', kBufferSize / 4);
           num_bytes = recv(sockfd_, buffer_[i], kBufferSize / 4, 0);
-          //std::cout << buffer_[i] << std::endl;
+          std::cout << buffer_[i] << std::endl;
           close(sockfd_);
         }
       }
@@ -134,17 +160,34 @@ void DFC::HandleInput(std::string input) {
 
   }
   else if (method == "put") {
-
+    std::cout << filename << "..\n";
+    num_bytes = GetFileSize(filename);
+    std::cout << num_bytes << std::endl;
+    if(num_bytes > 0 ) {
+      partition = num_bytes / 4;
+      remainder = num_bytes - (3 * partition);
+      std::cout << num_bytes << ", " << partition << ", " << remainder << std::endl;
+      /*
+      file_ofs.open(filename.c_str(), std::ofstream::binary);
+      if (file_ofs.is_open()) {
+        file_ofs.write(buffer_[0], partition);
+        //file_ofs.write(buffer_[1], partition);
+        //file_ofs.write(buffer_[2], partition);
+        //file_ofs.write(buffer_[3], remainder);
+        file_ofs.close();
+      }
+      */
+    }
   }
   else {
 
   }
   //*/
   close(sockfd_);
+  delete hash;
 
-  struct HashStruct * hash = new struct HashStruct();
-  HashMessage(input, hash);
-  int remainder = hash->ull % kNumDFSServers;
+
+
 
   //UploadFile(input);
   //*/

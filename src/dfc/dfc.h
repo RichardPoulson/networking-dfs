@@ -74,6 +74,7 @@ protected:
   struct timeval timeout_; // timeout of server's listen socket
   fd_set master_set_, working_set_; // file descriptor sets, used with select()
 	bool CreateBindSocket(std::string addr_str);
+	int GetFileSize(std::string file_name);
 	void HandleInput(std::string input);
 	void HashMessage(std::string message, struct HashStruct * hash_struct);
 	bool LoadConfigFile();

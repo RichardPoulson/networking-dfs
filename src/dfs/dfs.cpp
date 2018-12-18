@@ -56,7 +56,7 @@ void * PThread(void * arg) {
   if (request.method == "list") {
     pthread_mutex_lock(&shared->file_mx); // LOCK file_mx
     memset(buffer, '0', kBufferSize);
-    strcpy(buffer, "list\n");
+    strcpy(buffer, "");
     while((entry_ptr = readdir(dir_ptr))){
       if((strcmp(entry_ptr->d_name, ".") != 0)
           && (strcmp(entry_ptr->d_name, "..") != 0 )) {
@@ -66,7 +66,6 @@ void * PThread(void * arg) {
     }
     strcat(buffer, "\0"); // null terminator
     closedir(dir_ptr);
-    std::cout << buffer << std::endl;
     pthread_mutex_unlock(&shared->file_mx); // UNLOCK file_mx
     send(request.clients_sd, buffer, strlen(buffer) + 1, 0); // don't forget NULL
   }
