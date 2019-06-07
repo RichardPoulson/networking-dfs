@@ -1,6 +1,4 @@
-Richard Poulson
-Network Systems
-Programming assignment 4
+# Basic DFS (distributed file system)
 
 To create binary executable files: enter "make" in terminal from root folder
 To remove files created during make process: "make clean"
